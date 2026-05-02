@@ -1772,45 +1772,65 @@ function importExcel(input) {
 
       if (!rows.length) { showToast('⚠️ El archivo está vacío'); return; }
 
-      // Map flexible column names (español o inglés, mayúsculas/minúsculas)
-      const col = (row, ...keys) => {
-        for (const k of keys) {
-          const found = Object.keys(row).find(r => r.toLowerCase().replace(/[^a-z]/g,'') === k.toLowerCase().replace(/[^a-z]/g,''));
-          if (found !== undefined && row[found] !== '') return row[found];
+      // Normaliza un encabezado: quita acentos, puntos, espacios y pasa a minúsculas
+      function norm(s) {
+        return String(s)
+          .normalize('NFD').replace(/[\u0300-\u036f]/g,'') // quita acentos
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g,'');                        // solo alfanumérico
+      }
+
+      // Construye mapa normalizado -> clave original en la primera fila
+      const colMap = {};
+      if (rows.length) Object.keys(rows[0]).forEach(k => { colMap[norm(k)] = k; });
+
+      // Obtiene valor de una columna por cualquiera de sus alias normalizados
+      const col = (row, ...aliases) => {
+        for (const alias of aliases) {
+          const key = colMap[norm(alias)];
+          if (key !== undefined && row[key] !== '' && row[key] !== null && row[key] !== undefined)
+            return row[key];
         }
         return '';
       };
 
-      let added = 0, updated = 0;
+      let added = 0, updated = 0, skipped = 0;
       rows.forEach(row => {
-        const barcode = String(col(row,'CodBarras','Cod.Barras','CodigoBarras','Barcode','Codigo de Barras') || '').trim();
-        const name    = String(col(row,'Nombre','Name','Producto') || '').trim();
-        if (!name) return;
+        // Columna Código (SKU) — la usamos si existe
+        const skuVal  = String(col(row, 'Código', 'Codigo', 'SKU', 'Code') || '').trim();
+        const barcode = String(col(row, 'Cód. Barras', 'Cod. Barras', 'CodigoBarras', 'Barcode', 'Codigo de Barras') || '').trim();
+        const name    = String(col(row, 'Nombre', 'Name', 'Producto') || '').trim();
+        if (!name) { skipped++; return; }
 
-        const incoming = {
-          barcode,
-          name,
-          desc:           String(col(row,'Descripcion','Description','Desc') || ''),
-          dept:           String(col(row,'Departamento','Depto','Dept') || ''),
-          lab:            String(col(row,'Laboratorio','Lab','Marca','Brand') || ''),
-          price:          parseFloat(col(row,'PrecioVenta','Precio Venta','Precio','Price') || 0),
-          pricewholesale: parseFloat(col(row,'PrecioMayoreo','Precio Mayoreo','Mayoreo','Wholesale') || 0),
-          cost:           parseFloat(col(row,'Costo','Cost') || 0),
-          stock:          parseInt(col(row,'StockActual','Stock Actual','Stock') || 0),
-          min:            parseInt(col(row,'StockMin','Stock Min','Min','Minimo') || 0),
-          max:            parseInt(col(row,'StockMax','Stock Max','Max','Maximo') || 0),
-          unit:           String(col(row,'Unidad','Unit','Presentacion') || ''),
-          expiry:         col(row,'Vencimiento','Vence','Expiry','FechaVencimiento') || '',
-        };
-
-        // Normalize date if it came as a JS Date object
-        if (incoming.expiry instanceof Date) {
-          incoming.expiry = incoming.expiry.toISOString().split('T')[0];
-        } else if (incoming.expiry) {
-          incoming.expiry = String(incoming.expiry);
+        const rawExpiry = col(row, 'Vencimiento', 'Vence', 'Expiry', 'FechaVencimiento');
+        let expiry = '';
+        if (rawExpiry instanceof Date) {
+          expiry = rawExpiry.toISOString().split('T')[0];
+        } else if (rawExpiry) {
+          expiry = String(rawExpiry).trim();
         }
 
-        // Match by barcode first, then by name
+        const incoming = {
+          sku:            skuVal || undefined,
+          barcode:        barcode,
+          name:           name,
+          desc:           String(col(row, 'Descripción', 'Descripcion', 'Desc') || ''),
+          dept:           String(col(row, 'Departamento', 'Depto', 'Dept') || ''),
+          lab:            String(col(row, 'Laboratorio', 'Lab', 'Marca', 'Brand') || ''),
+          price:          parseFloat(col(row, 'Precio Venta', 'PrecioVenta', 'Precio', 'Price') || 0),
+          pricewholesale: parseFloat(col(row, 'Precio Mayoreo', 'PrecioMayoreo', 'Mayoreo', 'Wholesale') || 0),
+          cost:           parseFloat(col(row, 'Costo', 'Cost') || 0),
+          stock:          parseInt(col(row,  'Stock Actual', 'StockActual', 'Stock') || 0),
+          min:            parseInt(col(row,  'Stock Mín', 'Stock Min', 'StockMin', 'Min', 'Minimo') || 0),
+          max:            parseInt(col(row,  'Stock Máx', 'Stock Max', 'StockMax', 'Max', 'Maximo') || 0),
+          unit:           String(col(row, 'Unidad', 'Unit', 'Presentacion') || ''),
+          expiry,
+        };
+
+        // Elimina undefined para no sobreescribir SKU existente con undefined
+        if (!incoming.sku) delete incoming.sku;
+
+        // Busca coincidencia: por código de barras, luego por nombre
         const existing = barcode
           ? products.find(p => p.barcode === barcode)
           : products.find(p => p.name.toLowerCase() === name.toLowerCase());
@@ -1820,14 +1840,20 @@ function importExcel(input) {
           updated++;
         } else {
           incoming.id = Date.now() + Math.random();
+          // Asigna SKU si no venía en el Excel
+          if (!incoming.sku) {
+            const prefix = (incoming.dept||'GEN').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z]/g,'').substring(0,3).padEnd(3,'X');
+            incoming.sku = `${prefix}-${String(products.length+1).padStart(4,'0')}`;
+          }
           products.push(incoming);
           added++;
         }
       });
 
+      assignSKUs(); // garantiza que todos tengan SKU
       save('products', products);
       renderInventory();
-      showToast(`✅ ${added} agregados, ${updated} actualizados`);
+      showToast(`✅ ${added} agregados · ${updated} actualizados · ${skipped} omitidos`);
     } catch(err) {
       showToast('❌ Error al leer el archivo Excel');
       console.error(err);
