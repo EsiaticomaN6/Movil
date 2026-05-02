@@ -1258,13 +1258,7 @@ let users = load('users', [
   { id: 1, name: 'Administrador', role: 'admin', color: '#4f6ef7', password: '' }
 ]);
 
-let products = load('products', [
-  { id: 1, barcode: '7501055300108', name: 'Paracetamol 500mg', desc: 'Analgésico', brand: 'Tempra', dept: 'Analgésicos', price: 45, cost: 20, stock: 24, min: 10, max: 50, expiry: '2026-08-01' },
-  { id: 2, barcode: '7501065907843', name: 'Amoxicilina 500mg', desc: 'Antibiótico', brand: 'Maver', dept: 'Antibióticos', price: 120, cost: 60, stock: 4, min: 5, max: 30, expiry: '2025-12-01' },
-  { id: 3, barcode: '7501234567890', name: 'Ibuprofeno 400mg', desc: 'Antiinflamatorio', brand: 'Advil', dept: 'Analgésicos', price: 55, cost: 25, stock: 0, min: 5, max: 40, expiry: '2026-05-15' },
-  { id: 4, barcode: '7509999012345', name: 'Vitamina C 1g', desc: 'Suplemento', brand: 'Redoxon', dept: 'Vitaminas', price: 85, cost: 40, stock: 18, min: 5, max: 60, expiry: '2027-01-01' },
-  { id: 5, barcode: '7501888234567', name: 'Omeprazol 20mg', desc: 'Antiácido', brand: 'Losec', dept: 'Gastrointestinal', price: 95, cost: 45, stock: 12, min: 8, max: 40, expiry: '2026-11-20' },
-]);
+let products = load('products', []);
 
 let sales = load('sales', []);
 let cart = [];
@@ -1412,7 +1406,7 @@ function searchProducts(q) {
     return;
   }
   const ql = q.toLowerCase();
-  const found = products.filter(p => p.name.toLowerCase().includes(ql) || p.barcode.includes(q) || (p.brand||'').toLowerCase().includes(ql));
+  const found = products.filter(p => p.name.toLowerCase().includes(ql) || (p.barcode||'').includes(q) || (p.lab||'').toLowerCase().includes(ql) || (p.sku||'').toLowerCase().includes(ql));
   if (!found.length) {
     res.innerHTML = '<div class="empty-state" style="padding:30px"><p>Sin resultados</p></div>';
     return;
@@ -1798,7 +1792,9 @@ function importExcel(input) {
       rows.forEach(row => {
         // Columna Código (SKU) — la usamos si existe
         const skuVal  = String(col(row, 'Código', 'Codigo', 'SKU', 'Code') || '').trim();
-        const barcode = String(col(row, 'Cód. Barras', 'Cod. Barras', 'CodigoBarras', 'Barcode', 'Codigo de Barras') || '').trim();
+        // Código de barras: Excel lo guarda como número, convertir a string sin decimales
+        const rawBarcode = col(row, 'Cód. Barras', 'Cod. Barras', 'CodigoBarras', 'Barcode', 'Codigo de Barras');
+        const barcode = rawBarcode !== '' ? String(Math.round(Number(rawBarcode))) : '';
         const name    = String(col(row, 'Nombre', 'Name', 'Producto') || '').trim();
         if (!name) { skipped++; return; }
 
