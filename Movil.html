@@ -936,9 +936,10 @@ body {
             <table class="inv-table" id="inv-table">
               <thead>
                 <tr>
+                  <th>SKU</th>
                   <th>Cód. Barras</th>
                   <th>Producto</th>
-                  <th>Descripción</th>
+                  <th>Descripción / Notas</th>
                   <th>Marca</th>
                   <th>Depto.</th>
                   <th>Precio</th>
@@ -947,7 +948,8 @@ body {
                   <th>Mín.</th>
                   <th>Máx.</th>
                   <th>Vence</th>
-                  <th></th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
                 </tr>
               </thead>
               <tbody id="inv-tbody"></tbody>
@@ -1128,7 +1130,11 @@ body {
       <button onclick="closeModal('product-form-modal')" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text2)">✕</button>
     </div>
     <div class="form-grid">
-      <div class="form-group full">
+      <div class="form-group">
+        <label>SKU (automático)</label>
+        <input class="input-field" id="pf-sku" placeholder="Se genera automáticamente" readonly style="background:#f0f0f0;color:var(--text3);cursor:not-allowed">
+      </div>
+      <div class="form-group">
         <label>Código de Barras</label>
         <input class="input-field" id="pf-barcode" placeholder="Escanea o escribe el código">
       </div>
@@ -1329,6 +1335,7 @@ function enterApp(user) {
     document.getElementById('admin-nav-label').style.display = '';
   }
   navigate('pos', document.querySelector('[data-page="pos"]'));
+  assignSKUs();
   renderInventory();
   renderSales();
   renderUsers();
@@ -1624,25 +1631,68 @@ function filterInventory() {
   document.getElementById('inv-count').textContent = `${filtered.length} de ${products.length} productos`;
   const tbody = document.getElementById('inv-tbody');
   tbody.innerHTML = filtered.map(p => {
-    const ss = p.stock === 0 ? 'stock-out' : p.stock <= p.min ? 'stock-low' : 'stock-ok';
-    const sv = p.stock === 0 ? 'Sin stock' : p.stock <= p.min ? 'Bajo' : 'OK';
+    const ss = p.stock === 0 ? 'stock-out' : p.stock <= (p.min||0) ? 'stock-low' : 'stock-ok';
+    const sv = p.stock === 0 ? 'Sin stock' : p.stock <= (p.min||0) ? 'Stock bajo' : 'OK';
+    const deptColor = deptBadgeColor(p.dept);
     return `<tr>
-      <td><span class="barcode-mono">${p.barcode}</span></td>
-      <td style="font-weight:700">${p.name}</td>
-      <td style="color:var(--text2)">${p.desc||''}</td>
-      <td>${p.brand||''}</td>
-      <td>${p.dept||''}</td>
+      <td><span class="barcode-mono" style="color:var(--accent);font-size:11px">${p.sku||genSKU(p)}</span></td>
+      <td><span class="barcode-mono">${p.barcode||'—'}</span></td>
+      <td style="font-weight:700;min-width:160px">${p.name}</td>
+      <td style="color:var(--text2);font-size:12px;font-style:italic;min-width:140px">${p.desc||'—'}</td>
+      <td style="font-weight:600">${p.brand||'—'}</td>
+      <td><span style="background:${deptColor.bg};color:${deptColor.fg};padding:3px 8px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap">${p.dept||'—'}</span></td>
       <td style="font-weight:700;color:var(--accent)">${fmt(p.price)}</td>
       <td style="color:var(--text2)">${fmt(p.cost||0)}</td>
-      <td><span class="stock-badge ${ss}">${p.stock} · ${sv}</span></td>
-      <td>${p.min||0}</td>
-      <td>${p.max||0}</td>
-      <td style="font-family:'JetBrains Mono',monospace;font-size:12px">${p.expiry||'—'}</td>
-      <td>
-        <button class="action-menu-btn" onclick="showCtxMenu(event,${p.id})">⋮</button>
+      <td style="font-weight:700;text-align:center">${p.stock}</td>
+      <td style="text-align:center;color:var(--text3)">${p.min||0}</td>
+      <td style="text-align:center;color:var(--text3)">${p.max||0}</td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:11px;white-space:nowrap">${p.expiry||'—'}</td>
+      <td><span class="stock-badge ${ss}">${sv}</span></td>
+      <td style="white-space:nowrap">
+        <button onclick="openEditProduct(${p.id})" style="background:none;border:none;font-size:17px;cursor:pointer;padding:3px 5px;border-radius:6px;transition:background .1s" title="Editar" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background='none'">✏️</button>
+        <button onclick="ctxTargetId=${p.id};ctxDelete()" style="background:none;border:none;font-size:17px;cursor:pointer;padding:3px 5px;border-radius:6px;transition:background .1s" title="Eliminar" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='none'">🗑️</button>
       </td>
     </tr>`;
   }).join('');
+}
+
+// Generate SKU automatically from dept + sequential
+function genSKU(p) {
+  if (p.sku) return p.sku;
+  const prefix = (p.dept||'GEN').toUpperCase().replace(/[^A-Z]/g,'').substring(0,3).padEnd(3,'X');
+  const seq = String(products.indexOf(p) + 1).padStart(4,'0');
+  p.sku = `${prefix}-${seq}`;
+  return p.sku;
+}
+
+// Assign SKUs to all products that don't have one
+function assignSKUs() {
+  products.forEach((p, i) => {
+    if (!p.sku) {
+      const prefix = (p.dept||'GEN').toUpperCase().replace(/[^A-Z]/g,'').substring(0,3).padEnd(3,'X');
+      p.sku = `${prefix}-${String(i+1).padStart(4,'0')}`;
+    }
+  });
+  save('products', products);
+}
+
+// Dept badge colors
+function deptBadgeColor(dept) {
+  const map = {
+    'analgésicos':    {bg:'#fef3c7',fg:'#b45309'},
+    'antibióticos':   {bg:'#dbeafe',fg:'#1d4ed8'},
+    'antiinflamatorio':{bg:'#ede9fe',fg:'#6d28d9'},
+    'antihistamínico':{bg:'#d1fae5',fg:'#065f46'},
+    'vitaminas':      {bg:'#fce7f3',fg:'#9d174d'},
+    'gastrointestinal':{bg:'#fef9c3',fg:'#854d0e'},
+    'dermatología':   {bg:'#ffedd5',fg:'#c2410c'},
+    'oftálmico':      {bg:'#e0f2fe',fg:'#0369a1'},
+    'naturista':      {bg:'#dcfce7',fg:'#15803d'},
+    'antiséptico':    {bg:'#f0fdf4',fg:'#166534'},
+    'cuidado personal':{bg:'#fdf4ff',fg:'#86198f'},
+  };
+  const key = (dept||'').toLowerCase();
+  return map[key] || {bg:'#f3f4f6',fg:'#374151'};
 }
 
 function filterByLow() {
@@ -1656,22 +1706,25 @@ function filterByOut() {
 }
 
 function exportExcel() {
+  assignSKUs();
   const rows = products.map(p => ({
-    'Cod. Barras': p.barcode || '',
-    'Nombre':      p.name,
-    'Descripcion': p.desc  || '',
-    'Marca':       p.brand || '',
-    'Departamento':p.dept  || '',
-    'Precio':      p.price,
-    'Costo':       p.cost  || 0,
-    'Stock':       p.stock,
-    'Min':         p.min   || 0,
-    'Max':         p.max   || 0,
-    'Vencimiento': p.expiry|| ''
+    'SKU':           p.sku || genSKU(p),
+    'Cod. Barras':   p.barcode || '',
+    'Nombre':        p.name,
+    'Descripcion':   p.desc   || '',
+    'Marca':         p.brand  || '',
+    'Departamento':  p.dept   || '',
+    'Precio':        p.price,
+    'Costo':         p.cost   || 0,
+    'Stock':         p.stock,
+    'Min':           p.min    || 0,
+    'Max':           p.max    || 0,
+    'Vencimiento':   p.expiry || '',
+    'Estado':        p.stock === 0 ? 'Sin stock' : p.stock <= (p.min||0) ? 'Stock bajo' : 'OK'
   }));
   const ws = XLSX.utils.json_to_sheet(rows);
   // Column widths
-  ws['!cols'] = [12,30,24,16,18,10,10,8,6,6,14].map(w => ({wch:w}));
+  ws['!cols'] = [10,14,30,24,16,18,10,10,8,6,6,14,10].map(w => ({wch:w}));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Inventario');
   XLSX.writeFile(wb, 'inventario_farmacia.xlsx');
@@ -1807,6 +1860,7 @@ function ctxDelete() {
 function openAddProduct() {
   editingProductId = null;
   document.getElementById('pf-title').textContent = '+ Agregar Producto';
+  document.getElementById('pf-sku').value = 'Se asignará al guardar';
   ['barcode','name','desc','brand','dept','price','cost','stock','min','max','expiry'].forEach(f => {
     const el = document.getElementById('pf-'+f);
     if (el) el.value = f === 'min' ? config.minstock : '';
@@ -1819,6 +1873,7 @@ function openEditProduct(id) {
   const p = products.find(pr => pr.id === id);
   if (!p) return;
   document.getElementById('pf-title').textContent = '✏️ Editar Producto';
+  document.getElementById('pf-sku').value = p.sku || genSKU(p);
   document.getElementById('pf-barcode').value = p.barcode||'';
   document.getElementById('pf-name').value = p.name;
   document.getElementById('pf-desc').value = p.desc||'';
@@ -1855,6 +1910,10 @@ function saveProduct() {
     products[idx] = { ...products[idx], ...data };
   } else {
     data.id = Date.now();
+    // Generate SKU for new product
+    const prefix = (data.dept||'GEN').toUpperCase().replace(/[^A-Z]/g,'').substring(0,3).padEnd(3,'X');
+    const seq = String(products.length + 1).padStart(4,'0');
+    data.sku = `${prefix}-${seq}`;
     products.push(data);
   }
   save('products', products);
