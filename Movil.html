@@ -9,6 +9,7 @@
 <title>Farmacia IRE - POS</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
 <style>
 :root {
   --navy: #1a1f3a;
@@ -798,6 +799,42 @@ body {
 }
 .iva-row label { font-size: 13px; color: var(--text2); font-weight: 600; }
 .iva-row input { width: 60px; }
+
+/* ========== CAMERA SCAN BUTTON ========== */
+.cam-btn {
+  position: absolute;
+  right: 8px; top: 50%; transform: translateY(-50%);
+  background: none; border: none;
+  font-size: 20px; cursor: pointer;
+  padding: 4px 6px; border-radius: 6px;
+  transition: background .15s; line-height: 1;
+}
+.cam-btn:hover { background: var(--surface); }
+
+/* ========== SCANNER MODAL ========== */
+#scanner-video {
+  width: 100%; border-radius: 10px;
+  background: #111; display: block;
+  aspect-ratio: 1; object-fit: cover;
+}
+.scanner-frame {
+  position: relative; margin-bottom: 14px;
+}
+.scanner-aim {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+  width: 200px; height: 200px;
+  border: 3px solid var(--accent);
+  border-radius: 14px;
+  box-shadow: 0 0 0 9999px rgba(0,0,0,.45);
+  pointer-events: none;
+  animation: scanline 2s ease-in-out infinite;
+}
+@keyframes scanline {
+  0%,100% { border-color: var(--accent); }
+  50%      { border-color: var(--green); }
+}
+.scanner-hint { font-size: 12px; color: var(--text3); text-align: center; margin-bottom: 10px; }
 </style>
 </head>
 <body>
@@ -922,7 +959,8 @@ body {
         <div class="inv-toolbar">
           <div class="inv-search-wrap">
             <span class="search-icon" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:16px">🔍</span>
-            <input class="input-field" id="inv-search" placeholder="Buscar por código o nombre..." oninput="filterInventory()" style="padding-left:38px;width:100%">
+            <input class="input-field" id="inv-search" placeholder="Buscar por código o nombre..." oninput="filterInventory()" style="padding-left:38px;padding-right:40px;width:100%">
+            <button onclick="openScanner('inv-search', filterInventory)" class="cam-btn" title="Escanear con cámara">📷</button>
           </div>
           <select class="select-field" id="inv-dept" onchange="filterInventory()">
             <option value="">Todos los deptos.</option>
@@ -974,9 +1012,10 @@ body {
 
       <!-- ===== CONSULTA PAGE ===== -->
       <div class="page" id="page-consulta">
-        <div class="inv-search-wrap" style="max-width:400px;margin-bottom:20px">
+        <div class="inv-search-wrap" style="max-width:440px;margin-bottom:20px">
           <span class="search-icon" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:16px">🔍</span>
-          <input class="input-field" placeholder="Buscar producto..." oninput="consultaSearch(this.value)" style="padding-left:38px;width:100%">
+          <input class="input-field" id="consulta-search-input" placeholder="Buscar producto..." oninput="consultaSearch(this.value)" style="padding-left:38px;padding-right:40px;width:100%">
+          <button onclick="openScanner('consulta-search-input', function(v){ consultaSearch(v); })" class="cam-btn" title="Escanear con cámara">📷</button>
         </div>
         <div id="consulta-results">
           <div class="empty-state"><div class="empty-icon">🔎</div><p>Escribe para buscar un producto</p></div>
@@ -1075,7 +1114,8 @@ body {
     </div>
     <div class="product-search-input-wrap">
       <span class="search-icon">🔍</span>
-      <input class="input-field" id="ps-search" placeholder="Código de barras o nombre..." oninput="searchProducts(this.value)" autofocus style="padding-left:38px">
+      <input class="input-field" id="ps-search" placeholder="Código de barras o nombre..." oninput="searchProducts(this.value)" autofocus style="padding-left:38px;padding-right:44px">
+      <button onclick="openScanner('ps-search', searchProducts)" class="cam-btn" title="Escanear con cámara">📷</button>
     </div>
     <div class="product-list" id="ps-results">
       <div class="empty-state" style="padding:30px"><p>Escribe para buscar</p></div>
@@ -1255,6 +1295,27 @@ body {
   <div class="ctx-item" onclick="ctxAddStock()">📦 Agregar Stock</div>
   <div class="ctx-item" onclick="ctxViewHistory()">📋 Ver Movimientos</div>
   <div class="ctx-item danger" onclick="ctxDelete()">🗑️ Eliminar</div>
+</div>
+
+<!-- Scanner Modal -->
+<div class="modal-overlay" id="scanner-modal">
+  <div class="modal-box" style="max-width:400px;width:100%">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div class="modal-title" style="margin:0">📷 Escanear Código</div>
+      <button onclick="closeScanner()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text2)">✕</button>
+    </div>
+    <div class="scanner-frame">
+      <video id="scanner-video" playsinline autoplay muted></video>
+      <div class="scanner-aim"></div>
+    </div>
+    <p class="scanner-hint">Apunta la cámara al código de barras</p>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-secondary" onclick="closeScanner()">Cancelar</button>
+      <select id="scanner-camera-select" class="select-field" style="flex:1;font-size:13px" onchange="switchCamera(this.value)">
+        <option value="">Cámara trasera</option>
+      </select>
+    </div>
+  </div>
 </div>
 
 <!-- Toast -->
@@ -2003,32 +2064,56 @@ function saveProduct() {
 // ===== CONSULTA =====
 function consultaSearch(q) {
   const res = document.getElementById('consulta-results');
-  if (!q.trim()) {
+  if (!q || !q.trim()) {
     res.innerHTML = '<div class="empty-state"><div class="empty-icon">🔎</div><p>Escribe para buscar un producto</p></div>';
     return;
   }
   const ql = q.toLowerCase();
-  const found = products.filter(p => p.name.toLowerCase().includes(ql) || p.barcode.includes(q));
+  const found = products.filter(p =>
+    p.name.toLowerCase().includes(ql) ||
+    (p.barcode||'').includes(q) ||
+    (p.sku||'').toLowerCase().includes(ql) ||
+    (p.lab||'').toLowerCase().includes(ql)
+  );
   if (!found.length) {
-    res.innerHTML = '<div class="empty-state"><p>Sin resultados</p></div>';
+    res.innerHTML = '<div class="empty-state"><p>Sin resultados para "<b>' + q + '</b>"</p></div>';
     return;
   }
   res.innerHTML = found.map(p => {
-    const ss = p.stock === 0 ? 'stock-out' : p.stock <= p.min ? 'stock-low' : 'stock-ok';
-    return `<div class="sale-card">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start">
-        <div>
-          <div style="font-weight:800;font-size:16px">${p.name}</div>
-          <div style="font-size:12px;color:var(--text3);font-family:'JetBrains Mono',monospace">${p.barcode}</div>
-          <div style="font-size:13px;color:var(--text2);margin-top:4px">${p.brand||''} · ${p.dept||''}</div>
+    const ss = p.stock === 0 ? 'stock-out' : p.stock <= (p.min||0) ? 'stock-low' : 'stock-ok';
+    const sv = p.stock === 0 ? 'Sin stock' : p.stock <= (p.min||0) ? 'Stock bajo' : 'OK';
+    return `<div class="sale-card" style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:800;font-size:15px;margin-bottom:2px">${p.name}</div>
+          <div style="font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace">${p.barcode||'—'} · ${p.sku||''}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:3px">${p.lab||''} · ${p.dept||''} · ${p.unit||''}</div>
+          <div style="margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span class="stock-badge ${ss}">${p.stock} uds · ${sv}</span>
+            ${p.pricewholesale ? `<span style="font-size:11px;color:#7c3aed;font-weight:600">May: ${fmt(p.pricewholesale)}</span>` : ''}
+          </div>
         </div>
-        <div style="text-align:right">
-          <div style="font-size:22px;font-weight:800;color:var(--accent)">${fmt(p.price)}</div>
-          <span class="stock-badge ${ss}">${p.stock} uds.</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
+          <div style="font-size:22px;font-weight:800;color:var(--accent)">${fmt(p.price||0)}</div>
+          <button
+            onclick="addToCartFromConsulta(${p.id})"
+            ${p.stock<=0 ? 'disabled' : ''}
+            style="background:${p.stock<=0?'var(--text3)':'var(--green)'};color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:inherit;font-size:13px;font-weight:700;cursor:${p.stock<=0?'not-allowed':'pointer'};white-space:nowrap;transition:filter .15s"
+          >🛒 ${p.stock<=0?'Sin stock':'+ Al ticket'}</button>
         </div>
       </div>
     </div>`;
   }).join('');
+}
+
+function addToCartFromConsulta(pid) {
+  addToCart(pid);
+  // Show cart count feedback
+  const btn = document.querySelector(`[onclick="addToCartFromConsulta(${pid})"]`);
+  if (btn) {
+    btn.textContent = '✅ Agregado';
+    setTimeout(() => { btn.textContent = '🛒 + Al ticket'; }, 1500);
+  }
 }
 
 // ===== SALES =====
@@ -2191,6 +2276,82 @@ function showToast(msg) {
   t.textContent = msg;
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ===== BARCODE SCANNER =====
+let scannerReader = null;
+let scannerCallback = null;
+let scannerTargetId = null;
+
+function openScanner(inputId, callback) {
+  scannerTargetId = inputId;
+  scannerCallback = callback;
+  openModal('scanner-modal');
+  startScanner();
+}
+
+async function startScanner() {
+  try {
+    const codeReader = new ZXing.BrowserMultiFormatReader();
+    scannerReader = codeReader;
+
+    // List cameras and populate select
+    const devices = await codeReader.listVideoInputDevices();
+    const sel = document.getElementById('scanner-camera-select');
+    sel.innerHTML = '';
+    devices.forEach((d, i) => {
+      const opt = document.createElement('option');
+      opt.value = d.deviceId;
+      opt.text = d.label || `Cámara ${i+1}`;
+      sel.appendChild(opt);
+    });
+
+    // Prefer back camera
+    const backCam = devices.find(d => /back|rear|trasera|environment/i.test(d.label));
+    const deviceId = backCam ? backCam.deviceId : (devices[0]?.deviceId);
+
+    if (deviceId) sel.value = deviceId;
+
+    await codeReader.decodeFromVideoDevice(deviceId, 'scanner-video', (result, err) => {
+      if (result) {
+        const code = result.getText();
+        closeScanner();
+        const inp = document.getElementById(scannerTargetId);
+        if (inp) { inp.value = code; inp.focus(); }
+        if (typeof scannerCallback === 'function') scannerCallback(code);
+        showToast('📷 Código escaneado: ' + code);
+      }
+    });
+  } catch(e) {
+    showToast('⚠️ No se pudo acceder a la cámara');
+    closeModal('scanner-modal');
+    console.error(e);
+  }
+}
+
+function switchCamera(deviceId) {
+  if (!deviceId || !scannerReader) return;
+  scannerReader.reset();
+  scannerReader.decodeFromVideoDevice(deviceId, 'scanner-video', (result) => {
+    if (result) {
+      const code = result.getText();
+      closeScanner();
+      const inp = document.getElementById(scannerTargetId);
+      if (inp) { inp.value = code; inp.focus(); }
+      if (typeof scannerCallback === 'function') scannerCallback(code);
+      showToast('📷 Código escaneado: ' + code);
+    }
+  });
+}
+
+function closeScanner() {
+  if (scannerReader) { try { scannerReader.reset(); } catch(e){} scannerReader = null; }
+  const video = document.getElementById('scanner-video');
+  if (video && video.srcObject) {
+    video.srcObject.getTracks().forEach(t => t.stop());
+    video.srcObject = null;
+  }
+  closeModal('scanner-modal');
 }
 
 // ===== START =====
