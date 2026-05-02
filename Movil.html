@@ -936,18 +936,21 @@ body {
             <table class="inv-table" id="inv-table">
               <thead>
                 <tr>
-                  <th>SKU</th>
+                  <th>Código</th>
                   <th>Cód. Barras</th>
-                  <th>Producto</th>
-                  <th>Descripción / Notas</th>
-                  <th>Marca</th>
-                  <th>Depto.</th>
-                  <th>Precio</th>
+                  <th>Nombre</th>
+                  <th>Descripción</th>
+                  <th>Departamento</th>
+                  <th>Laboratorio</th>
+                  <th>Precio Venta</th>
+                  <th>Precio Mayo.</th>
                   <th>Costo</th>
-                  <th>Stock</th>
-                  <th>Mín.</th>
-                  <th>Máx.</th>
-                  <th>Vence</th>
+                  <th>Ganancia</th>
+                  <th>Stock Actual</th>
+                  <th>Stock Mín</th>
+                  <th>Stock Máx</th>
+                  <th>Unidad</th>
+                  <th>Vencimiento</th>
                   <th>Estado</th>
                   <th>Acciones</th>
                 </tr>
@@ -1131,24 +1134,20 @@ body {
     </div>
     <div class="form-grid">
       <div class="form-group">
-        <label>SKU (automático)</label>
+        <label>Código (automático)</label>
         <input class="input-field" id="pf-sku" placeholder="Se genera automáticamente" readonly style="background:#f0f0f0;color:var(--text3);cursor:not-allowed">
       </div>
       <div class="form-group">
         <label>Código de Barras</label>
-        <input class="input-field" id="pf-barcode" placeholder="Escanea o escribe el código">
+        <input class="input-field" id="pf-barcode" placeholder="Escanea o escribe">
       </div>
       <div class="form-group full">
-        <label>Nombre del Producto *</label>
+        <label>Nombre *</label>
         <input class="input-field" id="pf-name" placeholder="Ej: Paracetamol 500mg">
       </div>
       <div class="form-group full">
-        <label>Descripción / Notas</label>
+        <label>Descripción</label>
         <input class="input-field" id="pf-desc" placeholder="Descripción opcional">
-      </div>
-      <div class="form-group">
-        <label>Marca</label>
-        <input class="input-field" id="pf-brand" placeholder="Ej: Bayer">
       </div>
       <div class="form-group">
         <label>Departamento</label>
@@ -1156,12 +1155,24 @@ body {
         <datalist id="dept-list"></datalist>
       </div>
       <div class="form-group">
-        <label>Precio de Venta *</label>
-        <input class="input-field" id="pf-price" type="number" min="0" step="0.01" placeholder="0.00">
+        <label>Laboratorio</label>
+        <input class="input-field" id="pf-lab" placeholder="Ej: Bayer">
+      </div>
+      <div class="form-group">
+        <label>Precio Venta *</label>
+        <input class="input-field" id="pf-price" type="number" min="0" step="0.01" placeholder="0.00" oninput="calcProfit()">
+      </div>
+      <div class="form-group">
+        <label>Precio Mayoreo</label>
+        <input class="input-field" id="pf-pricewholesale" type="number" min="0" step="0.01" placeholder="0.00">
       </div>
       <div class="form-group">
         <label>Costo</label>
-        <input class="input-field" id="pf-cost" type="number" min="0" step="0.01" placeholder="0.00">
+        <input class="input-field" id="pf-cost" type="number" min="0" step="0.01" placeholder="0.00" oninput="calcProfit()">
+      </div>
+      <div class="form-group">
+        <label>Ganancia (auto)</label>
+        <input class="input-field" id="pf-profit" readonly placeholder="0.00" style="background:#f0f0f0;color:var(--text3);cursor:not-allowed">
       </div>
       <div class="form-group">
         <label>Stock Actual</label>
@@ -1176,7 +1187,16 @@ body {
         <input class="input-field" id="pf-max" type="number" min="0" placeholder="100">
       </div>
       <div class="form-group">
-        <label>Fecha de Vencimiento</label>
+        <label>Unidad</label>
+        <input class="input-field" id="pf-unit" placeholder="Ej: Caja, Pieza, Frasco" list="unit-list">
+        <datalist id="unit-list">
+          <option value="Pieza"><option value="Caja"><option value="Frasco">
+          <option value="Tableta"><option value="Ampolleta"><option value="Tubo">
+          <option value="Sobre"><option value="Rollo"><option value="Par">
+        </datalist>
+      </div>
+      <div class="form-group">
+        <label>Vencimiento</label>
         <input class="input-field" id="pf-expiry" type="date">
       </div>
     </div>
@@ -1619,11 +1639,11 @@ function filterInventory() {
   const sf = document.getElementById('inv-stock-filter').value;
 
   const filtered = products.filter(p => {
-    const mq = !q || p.name.toLowerCase().includes(q) || p.barcode.includes(q) || (p.brand||'').toLowerCase().includes(q);
+    const mq = !q || p.name.toLowerCase().includes(q) || (p.barcode||'').includes(q) || (p.lab||'').toLowerCase().includes(q) || (p.sku||'').toLowerCase().includes(q);
     const md = !dept || p.dept === dept;
     let ms = true;
-    if (sf === 'ok') ms = p.stock > p.min;
-    else if (sf === 'low') ms = p.stock <= p.min && p.stock > 0;
+    if (sf === 'ok') ms = p.stock > (p.min||0);
+    else if (sf === 'low') ms = p.stock <= (p.min||0) && p.stock > 0;
     else if (sf === 'out') ms = p.stock === 0;
     return mq && md && ms;
   });
@@ -1634,18 +1654,23 @@ function filterInventory() {
     const ss = p.stock === 0 ? 'stock-out' : p.stock <= (p.min||0) ? 'stock-low' : 'stock-ok';
     const sv = p.stock === 0 ? 'Sin stock' : p.stock <= (p.min||0) ? 'Stock bajo' : 'OK';
     const deptColor = deptBadgeColor(p.dept);
+    const profit = ((p.price||0) - (p.cost||0));
+    const profitPct = p.cost > 0 ? ((profit/p.cost)*100).toFixed(0) : 0;
     return `<tr>
       <td><span class="barcode-mono" style="color:var(--accent);font-size:11px">${p.sku||genSKU(p)}</span></td>
       <td><span class="barcode-mono">${p.barcode||'—'}</span></td>
       <td style="font-weight:700;min-width:160px">${p.name}</td>
-      <td style="color:var(--text2);font-size:12px;font-style:italic;min-width:140px">${p.desc||'—'}</td>
-      <td style="font-weight:600">${p.brand||'—'}</td>
+      <td style="color:var(--text2);font-size:12px;font-style:italic;min-width:130px">${p.desc||'—'}</td>
       <td><span style="background:${deptColor.bg};color:${deptColor.fg};padding:3px 8px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap">${p.dept||'—'}</span></td>
-      <td style="font-weight:700;color:var(--accent)">${fmt(p.price)}</td>
+      <td style="font-size:13px">${p.lab||'—'}</td>
+      <td style="font-weight:700;color:var(--accent)">${fmt(p.price||0)}</td>
+      <td style="color:#7c3aed;font-weight:600">${p.pricewholesale ? fmt(p.pricewholesale) : '—'}</td>
       <td style="color:var(--text2)">${fmt(p.cost||0)}</td>
+      <td style="color:${profit>=0?'var(--green)':'var(--red)'};font-weight:700">${fmt(profit)} <span style="font-size:10px;opacity:.7">(${profitPct}%)</span></td>
       <td style="font-weight:700;text-align:center">${p.stock}</td>
       <td style="text-align:center;color:var(--text3)">${p.min||0}</td>
       <td style="text-align:center;color:var(--text3)">${p.max||0}</td>
+      <td style="font-size:12px;color:var(--text2)">${p.unit||'—'}</td>
       <td style="font-family:'JetBrains Mono',monospace;font-size:11px;white-space:nowrap">${p.expiry||'—'}</td>
       <td><span class="stock-badge ${ss}">${sv}</span></td>
       <td style="white-space:nowrap">
@@ -1708,23 +1733,26 @@ function filterByOut() {
 function exportExcel() {
   assignSKUs();
   const rows = products.map(p => ({
-    'SKU':           p.sku || genSKU(p),
-    'Cod. Barras':   p.barcode || '',
-    'Nombre':        p.name,
-    'Descripcion':   p.desc   || '',
-    'Marca':         p.brand  || '',
-    'Departamento':  p.dept   || '',
-    'Precio':        p.price,
-    'Costo':         p.cost   || 0,
-    'Stock':         p.stock,
-    'Min':           p.min    || 0,
-    'Max':           p.max    || 0,
-    'Vencimiento':   p.expiry || '',
-    'Estado':        p.stock === 0 ? 'Sin stock' : p.stock <= (p.min||0) ? 'Stock bajo' : 'OK'
+    'Codigo':         p.sku || genSKU(p),
+    'Cod. Barras':    p.barcode || '',
+    'Nombre':         p.name,
+    'Descripcion':    p.desc   || '',
+    'Departamento':   p.dept   || '',
+    'Laboratorio':    p.lab    || '',
+    'Precio Venta':   p.price  || 0,
+    'Precio Mayoreo': p.pricewholesale || 0,
+    'Costo':          p.cost   || 0,
+    'Ganancia':       ((p.price||0)-(p.cost||0)),
+    'Stock Actual':   p.stock,
+    'Stock Min':      p.min    || 0,
+    'Stock Max':      p.max    || 0,
+    'Unidad':         p.unit   || '',
+    'Vencimiento':    p.expiry || '',
+    'Estado':         p.stock === 0 ? 'Sin stock' : p.stock <= (p.min||0) ? 'Stock bajo' : 'OK'
   }));
   const ws = XLSX.utils.json_to_sheet(rows);
   // Column widths
-  ws['!cols'] = [10,14,30,24,16,18,10,10,8,6,6,14,10].map(w => ({wch:w}));
+  ws['!cols'] = [10,14,30,24,18,20,12,12,10,10,10,8,8,10,14,10].map(w => ({wch:w}));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Inventario');
   XLSX.writeFile(wb, 'inventario_farmacia.xlsx');
@@ -1755,22 +1783,24 @@ function importExcel(input) {
 
       let added = 0, updated = 0;
       rows.forEach(row => {
-        const barcode = String(col(row,'CodBarras','Barcode','Codigo','codigobarras') || '').trim();
+        const barcode = String(col(row,'CodBarras','Cod.Barras','CodigoBarras','Barcode','Codigo de Barras') || '').trim();
         const name    = String(col(row,'Nombre','Name','Producto') || '').trim();
         if (!name) return;
 
         const incoming = {
           barcode,
           name,
-          desc:   String(col(row,'Descripcion','Description','Desc','Notas') || ''),
-          brand:  String(col(row,'Marca','Brand') || ''),
-          dept:   String(col(row,'Departamento','Depto','Dept','Department') || ''),
-          price:  parseFloat(col(row,'Precio','Price') || 0),
-          cost:   parseFloat(col(row,'Costo','Cost') || 0),
-          stock:  parseInt(col(row,'Stock') || 0),
-          min:    parseInt(col(row,'Min','Minimo','StockMin') || 0),
-          max:    parseInt(col(row,'Max','Maximo','StockMax') || 0),
-          expiry: col(row,'Vencimiento','Vence','Expiry','Expiracion') || '',
+          desc:           String(col(row,'Descripcion','Description','Desc') || ''),
+          dept:           String(col(row,'Departamento','Depto','Dept') || ''),
+          lab:            String(col(row,'Laboratorio','Lab','Marca','Brand') || ''),
+          price:          parseFloat(col(row,'PrecioVenta','Precio Venta','Precio','Price') || 0),
+          pricewholesale: parseFloat(col(row,'PrecioMayoreo','Precio Mayoreo','Mayoreo','Wholesale') || 0),
+          cost:           parseFloat(col(row,'Costo','Cost') || 0),
+          stock:          parseInt(col(row,'StockActual','Stock Actual','Stock') || 0),
+          min:            parseInt(col(row,'StockMin','Stock Min','Min','Minimo') || 0),
+          max:            parseInt(col(row,'StockMax','Stock Max','Max','Maximo') || 0),
+          unit:           String(col(row,'Unidad','Unit','Presentacion') || ''),
+          expiry:         col(row,'Vencimiento','Vence','Expiry','FechaVencimiento') || '',
         };
 
         // Normalize date if it came as a JS Date object
@@ -1856,12 +1886,21 @@ function ctxDelete() {
   }
 }
 
+function calcProfit() {
+  const price = parseFloat(document.getElementById('pf-price').value)||0;
+  const cost  = parseFloat(document.getElementById('pf-cost').value)||0;
+  const profit = price - cost;
+  const pct = cost > 0 ? ` (${((profit/cost)*100).toFixed(0)}%)` : '';
+  document.getElementById('pf-profit').value = profit.toFixed(2) + pct;
+}
+
 // Product form
 function openAddProduct() {
   editingProductId = null;
   document.getElementById('pf-title').textContent = '+ Agregar Producto';
   document.getElementById('pf-sku').value = 'Se asignará al guardar';
-  ['barcode','name','desc','brand','dept','price','cost','stock','min','max','expiry'].forEach(f => {
+  document.getElementById('pf-profit').value = '';
+  ['barcode','name','desc','dept','lab','price','pricewholesale','cost','stock','min','max','unit','expiry'].forEach(f => {
     const el = document.getElementById('pf-'+f);
     if (el) el.value = f === 'min' ? config.minstock : '';
   });
@@ -1873,47 +1912,51 @@ function openEditProduct(id) {
   const p = products.find(pr => pr.id === id);
   if (!p) return;
   document.getElementById('pf-title').textContent = '✏️ Editar Producto';
-  document.getElementById('pf-sku').value = p.sku || genSKU(p);
-  document.getElementById('pf-barcode').value = p.barcode||'';
-  document.getElementById('pf-name').value = p.name;
-  document.getElementById('pf-desc').value = p.desc||'';
-  document.getElementById('pf-brand').value = p.brand||'';
-  document.getElementById('pf-dept').value = p.dept||'';
-  document.getElementById('pf-price').value = p.price;
-  document.getElementById('pf-cost').value = p.cost||0;
-  document.getElementById('pf-stock').value = p.stock;
-  document.getElementById('pf-min').value = p.min||0;
-  document.getElementById('pf-max').value = p.max||0;
-  document.getElementById('pf-expiry').value = p.expiry||'';
+  document.getElementById('pf-sku').value           = p.sku || genSKU(p);
+  document.getElementById('pf-barcode').value       = p.barcode||'';
+  document.getElementById('pf-name').value          = p.name;
+  document.getElementById('pf-desc').value          = p.desc||'';
+  document.getElementById('pf-dept').value          = p.dept||'';
+  document.getElementById('pf-lab').value           = p.lab||'';
+  document.getElementById('pf-price').value         = p.price||0;
+  document.getElementById('pf-pricewholesale').value= p.pricewholesale||'';
+  document.getElementById('pf-cost').value          = p.cost||0;
+  document.getElementById('pf-profit').value        = ((p.price||0)-(p.cost||0)).toFixed(2);
+  document.getElementById('pf-stock').value         = p.stock;
+  document.getElementById('pf-min').value           = p.min||0;
+  document.getElementById('pf-max').value           = p.max||0;
+  document.getElementById('pf-unit').value          = p.unit||'';
+  document.getElementById('pf-expiry').value        = p.expiry||'';
   openModal('product-form-modal');
 }
 
 function saveProduct() {
-  const name = document.getElementById('pf-name').value.trim();
+  const name  = document.getElementById('pf-name').value.trim();
   const price = parseFloat(document.getElementById('pf-price').value)||0;
   if (!name || price <= 0) { showToast('⚠️ Nombre y precio son obligatorios'); return; }
+  const cost = parseFloat(document.getElementById('pf-cost').value)||0;
   const data = {
-    barcode: document.getElementById('pf-barcode').value.trim(),
+    barcode:        document.getElementById('pf-barcode').value.trim(),
     name,
-    desc:  document.getElementById('pf-desc').value.trim(),
-    brand: document.getElementById('pf-brand').value.trim(),
-    dept:  document.getElementById('pf-dept').value.trim(),
+    desc:           document.getElementById('pf-desc').value.trim(),
+    dept:           document.getElementById('pf-dept').value.trim(),
+    lab:            document.getElementById('pf-lab').value.trim(),
     price,
-    cost:  parseFloat(document.getElementById('pf-cost').value)||0,
-    stock: parseInt(document.getElementById('pf-stock').value)||0,
-    min:   parseInt(document.getElementById('pf-min').value)||0,
-    max:   parseInt(document.getElementById('pf-max').value)||0,
-    expiry:document.getElementById('pf-expiry').value,
+    pricewholesale: parseFloat(document.getElementById('pf-pricewholesale').value)||0,
+    cost,
+    stock:          parseInt(document.getElementById('pf-stock').value)||0,
+    min:            parseInt(document.getElementById('pf-min').value)||0,
+    max:            parseInt(document.getElementById('pf-max').value)||0,
+    unit:           document.getElementById('pf-unit').value.trim(),
+    expiry:         document.getElementById('pf-expiry').value,
   };
   if (editingProductId) {
     const idx = products.findIndex(p => p.id === editingProductId);
     products[idx] = { ...products[idx], ...data };
   } else {
     data.id = Date.now();
-    // Generate SKU for new product
     const prefix = (data.dept||'GEN').toUpperCase().replace(/[^A-Z]/g,'').substring(0,3).padEnd(3,'X');
-    const seq = String(products.length + 1).padStart(4,'0');
-    data.sku = `${prefix}-${seq}`;
+    data.sku = `${prefix}-${String(products.length+1).padStart(4,'0')}`;
     products.push(data);
   }
   save('products', products);
