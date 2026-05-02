@@ -1209,7 +1209,12 @@ body {
       </div>
       <div class="form-group">
         <label>Departamento</label>
-        <input class="input-field" id="pf-dept" placeholder="Ej: Analgésicos" list="dept-list">
+        <div style="position:relative">
+          <select id="pf-dept-select" class="input-field" onchange="onDeptSelect(this.value)" style="appearance:auto;padding-right:32px">
+            <option value="">— Seleccionar —</option>
+          </select>
+        </div>
+        <input class="input-field" id="pf-dept" placeholder="O escribe uno nuevo..." style="margin-top:6px" list="dept-list">
         <datalist id="dept-list"></datalist>
       </div>
       <div class="form-group">
@@ -1490,17 +1495,26 @@ function searchProducts(q) {
   const ql = q.toLowerCase();
   const found = products.filter(p => p.name.toLowerCase().includes(ql) || (p.barcode||'').includes(q) || (p.lab||'').toLowerCase().includes(ql) || (p.sku||'').toLowerCase().includes(ql));
   if (!found.length) {
-    res.innerHTML = '<div class="empty-state" style="padding:30px"><p>Sin resultados</p></div>';
+    res.innerHTML = `
+      <div style="text-align:center;padding:24px 16px">
+        <div style="font-size:36px;margin-bottom:8px">🔎</div>
+        <div style="font-weight:700;font-size:14px;color:var(--text);margin-bottom:4px">Producto no encontrado</div>
+        <div style="font-size:12px;color:var(--text3);margin-bottom:16px">No hay resultados para "<b>${q}</b>"</div>
+        <button onclick="openAddProductWithBarcode('${q.replace(/'/g,"\\'")}');closeModal('product-search-modal')"
+          style="background:var(--accent);color:#fff;border:none;border-radius:10px;padding:12px 20px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:8px">
+          ➕ Agregar nuevo producto
+        </button>
+      </div>`;
     return;
   }
   res.innerHTML = found.map(p => `
     <div class="product-row">
       <div class="product-row-info">
         <div class="product-row-name">${p.name}</div>
-        <div class="product-row-code">${p.barcode} · ${p.brand||''}</div>
+        <div class="product-row-code">${p.barcode||''} · ${p.lab||''}</div>
       </div>
       <div style="text-align:right">
-        <div class="product-row-price">$${p.price.toFixed(2)}</div>
+        <div class="product-row-price">$${(p.price||0).toFixed(2)}</div>
         <div class="product-row-stock">Stock: ${p.stock}</div>
       </div>
       <button class="add-btn" onclick="addToCart(${p.id})" ${p.stock<=0?'disabled style="background:var(--text3)"':''}>
@@ -1700,13 +1714,33 @@ function renderInventory() {
 
 function fillDeptList() {
   const depts = [...new Set(products.map(p=>p.dept).filter(Boolean))].sort();
+  // Inventory filter select
   const sel = document.getElementById('inv-dept');
   const cur = sel.value;
   sel.innerHTML = '<option value="">Todos los deptos.</option>' + depts.map(d=>`<option value="${d}">${d}</option>`).join('');
   sel.value = cur;
 
+  // Product form select
+  const psel = document.getElementById('pf-dept-select');
+  if (psel) {
+    const pcur = psel.value;
+    psel.innerHTML = '<option value="">— Seleccionar —</option>' + depts.map(d=>`<option value="${d}">${d}</option>`).join('') + '<option value="__new__">✏️ Otro (escribe abajo)...</option>';
+    if (pcur) psel.value = pcur;
+  }
+
+  // Datalist for free-text
   const dl = document.getElementById('dept-list');
   if (dl) dl.innerHTML = depts.map(d=>`<option value="${d}">`).join('');
+}
+
+function onDeptSelect(val) {
+  const inp = document.getElementById('pf-dept');
+  if (val === '__new__' || val === '') {
+    inp.value = '';
+    inp.focus();
+  } else {
+    inp.value = val;
+  }
 }
 
 function filterInventory() {
@@ -1990,6 +2024,13 @@ function ctxDelete() {
   }
 }
 
+function openAddProductWithBarcode(barcode) {
+  openAddProduct();
+  // Pre-fill barcode
+  const bc = document.getElementById('pf-barcode');
+  if (bc) bc.value = barcode;
+}
+
 function calcProfit() {
   const price = parseFloat(document.getElementById('pf-price').value)||0;
   const cost  = parseFloat(document.getElementById('pf-cost').value)||0;
@@ -2008,6 +2049,9 @@ function openAddProduct() {
     const el = document.getElementById('pf-'+f);
     if (el) el.value = f === 'min' ? config.minstock : '';
   });
+  fillDeptList();
+  const dsel = document.getElementById('pf-dept-select');
+  if (dsel) dsel.value = '';
   openModal('product-form-modal');
 }
 
@@ -2021,6 +2065,13 @@ function openEditProduct(id) {
   document.getElementById('pf-name').value          = p.name;
   document.getElementById('pf-desc').value          = p.desc||'';
   document.getElementById('pf-dept').value          = p.dept||'';
+  // Sync the dept select dropdown
+  const dsel = document.getElementById('pf-dept-select');
+  if (dsel) {
+    fillDeptList();
+    const opt = [...dsel.options].find(o => o.value === p.dept);
+    dsel.value = opt ? p.dept : '';
+  }
   document.getElementById('pf-lab').value           = p.lab||'';
   document.getElementById('pf-price').value         = p.price||0;
   document.getElementById('pf-pricewholesale').value= p.pricewholesale||'';
