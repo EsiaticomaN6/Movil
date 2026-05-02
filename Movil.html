@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1a1f3a">
@@ -35,17 +35,30 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
+html {
+  height: 100%;
+  height: -webkit-fill-available;
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+}
+
 body {
   font-family: 'Plus Jakarta Sans', sans-serif;
   background: var(--navy);
   color: var(--text);
-  min-height: 100vh;
+  height: 100%;
+  height: var(--app-height, -webkit-fill-available);
   overflow: hidden;
+  position: fixed;
+  width: 100%;
+  top: 0; left: 0;
 }
 
 /* ========== LOGIN SCREEN ========== */
 #login-screen {
-  min-height: 100vh;
+  height: 100%;
+  height: -webkit-fill-available;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -198,7 +211,7 @@ body {
 .btn-secondary { background: var(--surface); color: var(--text2); border: 2px solid var(--border); }
 
 /* ========== APP SHELL ========== */
-#app-screen { display: none; height: 100vh; flex-direction: column; }
+#app-screen { display: none; height: 100%; height: -webkit-fill-available; flex-direction: column; }
 #app-screen.active { display: flex; }
 
 .app-layout { display: flex; flex: 1; overflow: hidden; }
@@ -2451,6 +2464,16 @@ function closeScanner() {
   }
   closeModal('scanner-modal');
 }
+
+// ===== iOS KEYBOARD FIX =====
+// Prevents the page from scrolling/shifting when the keyboard appears
+function fixIOSHeight() {
+  const vh = window.innerHeight;
+  document.documentElement.style.setProperty('--app-height', `${vh}px`);
+}
+window.addEventListener('resize', fixIOSHeight);
+window.addEventListener('orientationchange', () => setTimeout(fixIOSHeight, 200));
+fixIOSHeight();
 
 // ===== START =====
 init();
