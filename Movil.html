@@ -2401,13 +2401,40 @@ function openScanner(inputId, callback) {
   startScanner();
 }
 
+// Formatos de código de barras permitidos (hasta 13 dígitos)
+const BARCODE_FORMATS = [
+  ZXing.BarcodeFormat.EAN_13,
+  ZXing.BarcodeFormat.EAN_8,
+  ZXing.BarcodeFormat.UPC_A,
+  ZXing.BarcodeFormat.UPC_E,
+  ZXing.BarcodeFormat.CODE_128,
+  ZXing.BarcodeFormat.CODE_39,
+  ZXing.BarcodeFormat.ITF,
+];
+
+function onBarcodeDetected(result) {
+  if (!result) return;
+  const raw = result.getText().trim();
+  // Filtrar: solo numéricos de hasta 13 chars, o alfanuméricos CODE128/39 hasta 13
+  if (!raw || raw.length > 13) return;
+  closeScanner();
+  const inp = document.getElementById(scannerTargetId);
+  if (inp) { inp.value = raw; inp.focus(); }
+  if (typeof scannerCallback === 'function') scannerCallback(raw);
+  showToast('📷 ' + raw);
+}
+
 async function startScanner() {
   try {
-    const codeReader = new ZXing.BrowserMultiFormatReader();
+    const hints = new Map();
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, BARCODE_FORMATS);
+    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+
+    const codeReader = new ZXing.BrowserMultiFormatReader(hints, 400);
     scannerReader = codeReader;
 
-    // List cameras and populate select
-    const devices = await codeReader.listVideoInputDevices();
+    // List cameras
+    const devices = await ZXing.BrowserMultiFormatReader.listVideoInputDevices();
     const sel = document.getElementById('scanner-camera-select');
     sel.innerHTML = '';
     devices.forEach((d, i) => {
@@ -2417,42 +2444,50 @@ async function startScanner() {
       sel.appendChild(opt);
     });
 
-    // Prefer back camera
+    // Prefer back/environment camera
     const backCam = devices.find(d => /back|rear|trasera|environment/i.test(d.label));
-    const deviceId = backCam ? backCam.deviceId : (devices[0]?.deviceId);
-
+    const deviceId = backCam ? backCam.deviceId : devices[0]?.deviceId;
     if (deviceId) sel.value = deviceId;
 
-    await codeReader.decodeFromVideoDevice(deviceId, 'scanner-video', (result, err) => {
-      if (result) {
-        const code = result.getText();
-        closeScanner();
-        const inp = document.getElementById(scannerTargetId);
-        if (inp) { inp.value = code; inp.focus(); }
-        if (typeof scannerCallback === 'function') scannerCallback(code);
-        showToast('📷 Código escaneado: ' + code);
-      }
+    // Use environment facing mode on mobile for back camera
+    const constraints = {
+      video: deviceId
+        ? { deviceId: { exact: deviceId }, facingMode: 'environment' }
+        : { facingMode: { ideal: 'environment' } }
+    };
+
+    await codeReader.decodeFromConstraints(constraints, 'scanner-video', (result, err) => {
+      if (result) onBarcodeDetected(result);
     });
+
   } catch(e) {
-    showToast('⚠️ No se pudo acceder a la cámara');
-    closeModal('scanner-modal');
-    console.error(e);
+    // Fallback: try without constraints
+    try {
+      const codeReader2 = new ZXing.BrowserMultiFormatReader();
+      scannerReader = codeReader2;
+      await codeReader2.decodeFromVideoDevice(undefined, 'scanner-video', (result) => {
+        if (result) onBarcodeDetected(result);
+      });
+    } catch(e2) {
+      showToast('⚠️ No se pudo acceder a la cámara');
+      closeModal('scanner-modal');
+    }
   }
 }
 
 function switchCamera(deviceId) {
   if (!deviceId || !scannerReader) return;
-  scannerReader.reset();
-  scannerReader.decodeFromVideoDevice(deviceId, 'scanner-video', (result) => {
-    if (result) {
-      const code = result.getText();
-      closeScanner();
-      const inp = document.getElementById(scannerTargetId);
-      if (inp) { inp.value = code; inp.focus(); }
-      if (typeof scannerCallback === 'function') scannerCallback(code);
-      showToast('📷 Código escaneado: ' + code);
-    }
-  });
+  try { scannerReader.reset(); } catch(e) {}
+  const hints = new Map();
+  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, BARCODE_FORMATS);
+  hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+  const reader = new ZXing.BrowserMultiFormatReader(hints, 400);
+  scannerReader = reader;
+  reader.decodeFromConstraints(
+    { video: { deviceId: { exact: deviceId } } },
+    'scanner-video',
+    (result) => { if (result) onBarcodeDetected(result); }
+  );
 }
 
 function closeScanner() {
