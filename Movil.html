@@ -825,29 +825,154 @@ body {
 .cam-btn:hover { background: var(--surface); }
 
 /* ========== SCANNER MODAL ========== */
+#scanner-modal .modal-box {
+  background: #0e1118;
+  border-radius: 20px;
+  padding: 0;
+  overflow: hidden;
+  max-width: 380px;
+  width: 100%;
+}
+
+.scanner-topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 18px 12px;
+  background: #0e1118;
+}
+
+.scanner-topbar-title {
+  color: #fff;
+  font-size: 15px; font-weight: 700;
+  display: flex; align-items: center; gap: 8px;
+}
+
+.scanner-topbar-close {
+  background: rgba(255,255,255,.12);
+  border: none; border-radius: 50%;
+  width: 30px; height: 30px;
+  color: #fff; font-size: 16px;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+
+.scanner-viewport {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  background: #000;
+  overflow: hidden;
+}
+
 #scanner-video {
-  width: 100%; border-radius: 10px;
-  background: #111; display: block;
-  aspect-ratio: 1; object-fit: cover;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
 }
-.scanner-frame {
-  position: relative; margin-bottom: 14px;
-}
-.scanner-aim {
-  position: absolute; top: 50%; left: 50%;
-  transform: translate(-50%,-50%);
-  width: 200px; height: 200px;
-  border: 3px solid var(--accent);
-  border-radius: 14px;
-  box-shadow: 0 0 0 9999px rgba(0,0,0,.45);
+
+/* Dark overlay with transparent center window */
+.scanner-overlay {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,.55);
   pointer-events: none;
-  animation: scanline 2s ease-in-out infinite;
 }
-@keyframes scanline {
-  0%,100% { border-color: var(--accent); }
-  50%      { border-color: var(--green); }
+
+/* The scanning window cutout */
+.scanner-window {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+  width: 68%; aspect-ratio: 1;
+  box-shadow: 0 0 0 9999px rgba(0,0,0,.55);
+  border-radius: 4px;
 }
-.scanner-hint { font-size: 12px; color: var(--text3); text-align: center; margin-bottom: 10px; }
+
+/* Corner brackets */
+.scanner-corner {
+  position: absolute;
+  width: 22px; height: 22px;
+  border-color: #4f6ef7;
+  border-style: solid;
+}
+.scanner-corner.tl { top: 0; left: 0;  border-width: 3px 0 0 3px; border-radius: 4px 0 0 0; }
+.scanner-corner.tr { top: 0; right: 0; border-width: 3px 3px 0 0; border-radius: 0 4px 0 0; }
+.scanner-corner.bl { bottom: 0; left: 0;  border-width: 0 0 3px 3px; border-radius: 0 0 0 4px; }
+.scanner-corner.br { bottom: 0; right: 0; border-width: 0 3px 3px 0; border-radius: 0 0 4px 0; }
+
+/* Animated scan line */
+.scanner-line {
+  position: absolute;
+  left: 6%; right: 6%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #4f6ef7, #7c9fff, #4f6ef7, transparent);
+  box-shadow: 0 0 8px 2px rgba(79,110,247,.7);
+  border-radius: 2px;
+  animation: scan-move 2s ease-in-out infinite;
+  top: 10%;
+}
+
+@keyframes scan-move {
+  0%   { top: 8%;  opacity: 1; }
+  50%  { top: 88%; opacity: 1; }
+  100% { top: 8%;  opacity: 1; }
+}
+
+.scanner-status {
+  position: absolute;
+  bottom: 12px; left: 0; right: 0;
+  text-align: center;
+  font-size: 12px; color: rgba(255,255,255,.65);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+.scanner-bottom {
+  background: #0e1118;
+  padding: 14px 16px;
+  display: flex; gap: 10px; align-items: center;
+}
+
+.scanner-input-wrap {
+  flex: 1; position: relative;
+}
+
+.scanner-manual-input {
+  width: 100%;
+  background: rgba(255,255,255,.08);
+  border: 1.5px solid rgba(255,255,255,.15);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  color: #fff;
+  outline: none;
+  transition: border-color .2s;
+}
+
+.scanner-manual-input::placeholder { color: rgba(255,255,255,.35); }
+.scanner-manual-input:focus { border-color: #4f6ef7; }
+
+.scanner-search-btn {
+  background: #4f6ef7;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 18px;
+  color: #fff;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 13px; font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.scanner-cam-select {
+  background: rgba(255,255,255,.08);
+  border: 1.5px solid rgba(255,255,255,.12);
+  border-radius: 8px;
+  color: rgba(255,255,255,.7);
+  font-size: 11px;
+  padding: 4px 8px;
+  font-family: inherit;
+  cursor: pointer;
+  margin: 0 16px 10px;
+  width: calc(100% - 32px);
+}
 </style>
 </head>
 <body>
@@ -1204,13 +1329,19 @@ body {
       <button onclick="closeModal('product-form-modal')" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text2)">✕</button>
     </div>
     <div class="form-grid">
-      <div class="form-group">
+      <div class="form-group full">
         <label>Código (automático)</label>
-        <input class="input-field" id="pf-sku" placeholder="Se genera automáticamente" readonly style="background:#f0f0f0;color:var(--text3);cursor:not-allowed">
+        <input class="input-field" id="pf-sku" placeholder="Se genera automáticamente" readonly style="background:#f0f0f0;color:var(--text3);cursor:not-allowed;font-family:'JetBrains Mono',monospace">
       </div>
-      <div class="form-group">
+      <div class="form-group full" style="grid-column:1/-1">
         <label>Código de Barras</label>
-        <input class="input-field" id="pf-barcode" placeholder="Escanea o escribe">
+        <div style="position:relative">
+          <input class="input-field" id="pf-barcode" placeholder="Escanea o escribe (máx. 13 dígitos)"
+            maxlength="13" inputmode="numeric" pattern="[0-9]*"
+            style="font-family:'JetBrains Mono',monospace;font-size:16px;letter-spacing:2px;padding-right:44px">
+          <button onclick="openScanner('pf-barcode', function(v){ document.getElementById('pf-barcode').value=v.substring(0,13); })" class="cam-btn" title="Escanear">📷</button>
+        </div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px">EAN-13 · EAN-8 · UPC-A · CODE-128</div>
       </div>
       <div class="form-group full">
         <label>Nombre *</label>
@@ -1323,23 +1454,50 @@ body {
 </div>
 
 <!-- Scanner Modal -->
-<div class="modal-overlay" id="scanner-modal">
-  <div class="modal-box" style="max-width:400px;width:100%">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-      <div class="modal-title" style="margin:0">📷 Escanear Código</div>
-      <button onclick="closeScanner()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text2)">✕</button>
+<div class="modal-overlay" id="scanner-modal" style="background:rgba(0,0,0,.85)">
+  <div class="modal-box" style="padding:0;background:#0e1118;border-radius:20px;overflow:hidden;max-width:380px;width:calc(100% - 32px)">
+
+    <!-- Top bar -->
+    <div class="scanner-topbar">
+      <div class="scanner-topbar-title">
+        <span style="font-size:18px">📷</span> Escanear código de barras
+      </div>
+      <button class="scanner-topbar-close" onclick="closeScanner()">✕</button>
     </div>
-    <div class="scanner-frame">
+
+    <!-- Viewport -->
+    <div class="scanner-viewport">
       <video id="scanner-video" playsinline autoplay muted></video>
-      <div class="scanner-aim"></div>
+      <!-- Dark overlay -->
+      <div class="scanner-overlay"></div>
+      <!-- Scan window with corners -->
+      <div class="scanner-window">
+        <div class="scanner-corner tl"></div>
+        <div class="scanner-corner tr"></div>
+        <div class="scanner-corner bl"></div>
+        <div class="scanner-corner br"></div>
+        <!-- Animated scan line -->
+        <div class="scanner-line"></div>
+      </div>
+      <!-- Status text -->
+      <div class="scanner-status" id="scanner-status">Iniciando cámara...</div>
     </div>
-    <p class="scanner-hint">Apunta la cámara al código de barras</p>
-    <div style="display:flex;gap:8px">
-      <button class="btn btn-secondary" onclick="closeScanner()">Cancelar</button>
-      <select id="scanner-camera-select" class="select-field" style="flex:1;font-size:13px" onchange="switchCamera(this.value)">
-        <option value="">Cámara trasera</option>
-      </select>
+
+    <!-- Camera selector -->
+    <select id="scanner-camera-select" class="scanner-cam-select" onchange="switchCamera(this.value)" style="margin-top:10px">
+      <option value="">Cámara trasera</option>
+    </select>
+
+    <!-- Manual input + search -->
+    <div class="scanner-bottom">
+      <div class="scanner-input-wrap">
+        <input class="scanner-manual-input" id="scanner-manual" type="text" inputmode="numeric"
+          maxlength="13" placeholder="O escribe el código..."
+          onkeydown="if(event.key==='Enter')scannerManualSearch()">
+      </div>
+      <button class="scanner-search-btn" onclick="scannerManualSearch()">Buscar</button>
     </div>
+
   </div>
 </div>
 
@@ -2397,8 +2555,24 @@ let scannerTargetId = null;
 function openScanner(inputId, callback) {
   scannerTargetId = inputId;
   scannerCallback = callback;
+  document.getElementById('scanner-manual').value = '';
+  setStatus('Iniciando cámara...');
   openModal('scanner-modal');
   startScanner();
+}
+
+function setStatus(msg) {
+  const el = document.getElementById('scanner-status');
+  if (el) el.textContent = msg;
+}
+
+function scannerManualSearch() {
+  const val = document.getElementById('scanner-manual').value.trim();
+  if (!val) return;
+  closeScanner();
+  const inp = document.getElementById(scannerTargetId);
+  if (inp) { inp.value = val; inp.focus(); inp.dispatchEvent(new Event('input')); }
+  if (typeof scannerCallback === 'function') scannerCallback(val);
 }
 
 // Formatos de código de barras permitidos (hasta 13 dígitos)
@@ -2414,12 +2588,11 @@ const BARCODE_FORMATS = [
 
 function onBarcodeDetected(result) {
   if (!result) return;
-  const raw = result.getText().trim();
-  // Filtrar: solo numéricos de hasta 13 chars, o alfanuméricos CODE128/39 hasta 13
-  if (!raw || raw.length > 13) return;
+  const raw = result.getText().trim().substring(0, 13); // máx 13 caracteres
+  if (!raw || raw.length < 3) return; // descartar lecturas muy cortas/ruido
   closeScanner();
   const inp = document.getElementById(scannerTargetId);
-  if (inp) { inp.value = raw; inp.focus(); }
+  if (inp) { inp.value = raw; inp.focus(); inp.dispatchEvent(new Event('input')); }
   if (typeof scannerCallback === 'function') scannerCallback(raw);
   showToast('📷 ' + raw);
 }
@@ -2449,7 +2622,8 @@ async function startScanner() {
     const deviceId = backCam ? backCam.deviceId : devices[0]?.deviceId;
     if (deviceId) sel.value = deviceId;
 
-    // Use environment facing mode on mobile for back camera
+    setStatus('Apunta al código de barras...');
+
     const constraints = {
       video: deviceId
         ? { deviceId: { exact: deviceId }, facingMode: 'environment' }
@@ -2461,16 +2635,15 @@ async function startScanner() {
     });
 
   } catch(e) {
-    // Fallback: try without constraints
     try {
+      setStatus('Apunta al código de barras...');
       const codeReader2 = new ZXing.BrowserMultiFormatReader();
       scannerReader = codeReader2;
       await codeReader2.decodeFromVideoDevice(undefined, 'scanner-video', (result) => {
         if (result) onBarcodeDetected(result);
       });
     } catch(e2) {
-      showToast('⚠️ No se pudo acceder a la cámara');
-      closeModal('scanner-modal');
+      setStatus('⚠️ Sin acceso a la cámara — escribe el código');
     }
   }
 }
