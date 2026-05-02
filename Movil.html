@@ -857,7 +857,7 @@ body {
 .scanner-viewport {
   position: relative;
   width: 100%;
-  aspect-ratio: 3/2;
+  aspect-ratio: 1/1;
   background: #000;
   overflow: hidden;
 }
@@ -875,13 +875,13 @@ body {
   pointer-events: none;
 }
 
-/* The scanning window — taller rectangle for better barcode reading */
+/* The scanning window */
 .scanner-window {
   position: absolute;
   top: 50%; left: 50%;
   transform: translate(-50%,-50%);
-  width: 82%;
-  height: 42%;
+  width: 88%;
+  height: 55%;
   box-shadow: 0 0 0 9999px rgba(0,0,0,.55);
   border-radius: 4px;
 }
