@@ -857,7 +857,7 @@ body {
 .scanner-viewport {
   position: relative;
   width: 100%;
-  aspect-ratio: 1;
+  aspect-ratio: 4/3;
   background: #000;
   overflow: hidden;
 }
@@ -875,12 +875,13 @@ body {
   pointer-events: none;
 }
 
-/* The scanning window cutout */
+/* The scanning window — rectangular for barcodes */
 .scanner-window {
   position: absolute;
   top: 50%; left: 50%;
   transform: translate(-50%,-50%);
-  width: 68%; aspect-ratio: 1;
+  width: 78%;
+  height: 28%;
   box-shadow: 0 0 0 9999px rgba(0,0,0,.55);
   border-radius: 4px;
 }
@@ -1107,6 +1108,7 @@ body {
             <input class="input-field" id="inv-search" placeholder="Buscar por código o nombre..." oninput="filterInventory()" style="padding-left:38px;padding-right:40px;width:100%">
             <button onclick="openScanner('inv-search', filterInventory)" class="cam-btn" title="Escanear con cámara">📷</button>
           </div>
+          <button onclick="clearInvSearch()" class="chip-btn" style="border-color:var(--border);color:var(--text2)" title="Limpiar búsqueda">✕ Limpiar</button>
           <select class="select-field" id="inv-dept" onchange="filterInventory()">
             <option value="">Todos los deptos.</option>
           </select>
@@ -1157,10 +1159,13 @@ body {
 
       <!-- ===== CONSULTA PAGE ===== -->
       <div class="page" id="page-consulta">
-        <div class="inv-search-wrap" style="max-width:440px;margin-bottom:20px">
-          <span class="search-icon" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:16px">🔍</span>
-          <input class="input-field" id="consulta-search-input" placeholder="Buscar producto..." oninput="consultaSearch(this.value)" style="padding-left:38px;padding-right:40px;width:100%">
-          <button onclick="openScanner('consulta-search-input', function(v){ consultaSearch(v); })" class="cam-btn" title="Escanear con cámara">📷</button>
+        <div style="display:flex;align-items:center;gap:10px;max-width:500px;margin-bottom:20px">
+          <div class="inv-search-wrap" style="flex:1">
+            <span class="search-icon" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:16px">🔍</span>
+            <input class="input-field" id="consulta-search-input" placeholder="Buscar producto..." oninput="consultaSearch(this.value)" style="padding-left:38px;padding-right:40px;width:100%">
+            <button onclick="openScanner('consulta-search-input', function(v){ consultaSearch(v); })" class="cam-btn" title="Escanear con cámara">📷</button>
+          </div>
+          <button onclick="clearConsulta()" class="chip-btn" style="border-color:var(--border);color:var(--text2);white-space:nowrap">✕ Limpiar</button>
         </div>
         <div id="consulta-results">
           <div class="empty-state"><div class="empty-icon">🔎</div><p>Escribe para buscar un producto</p></div>
@@ -2291,6 +2296,19 @@ function saveProduct() {
   showToast(editingProductId ? '✅ Producto actualizado' : '✅ Producto agregado');
 }
 
+function clearInvSearch() {
+  document.getElementById('inv-search').value = '';
+  document.getElementById('inv-dept').value = '';
+  document.getElementById('inv-stock-filter').value = '';
+  filterInventory();
+}
+
+function clearConsulta() {
+  document.getElementById('consulta-search-input').value = '';
+  document.getElementById('consulta-results').innerHTML =
+    '<div class="empty-state"><div class="empty-icon">🔎</div><p>Escribe para buscar un producto</p></div>';
+}
+
 // ===== CONSULTA =====
 function consultaSearch(q) {
   const res = document.getElementById('consulta-results');
@@ -2586,84 +2604,120 @@ const BARCODE_FORMATS = [
   ZXing.BarcodeFormat.ITF,
 ];
 
+// Confirmation buffer — same code must be read N times before accepting
+let scanBuffer = {};
+const SCAN_CONFIRM = 3;
+
 function onBarcodeDetected(result) {
   if (!result) return;
-  const raw = result.getText().trim().substring(0, 13); // máx 13 caracteres
-  if (!raw || raw.length < 3) return; // descartar lecturas muy cortas/ruido
+  const raw = result.getText().trim();
+  if (!raw || raw.length < 6 || raw.length > 14) return;
+
+  // For numeric-only formats, reject if not all digits
+  const bfmt = result.getBarcodeFormat ? result.getBarcodeFormat() : null;
+  const numericFmts = [ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8, ZXing.BarcodeFormat.UPC_A, ZXing.BarcodeFormat.UPC_E];
+  if (numericFmts.includes(bfmt) && !/^\d+$/.test(raw)) return;
+
+  // Accumulate confirmations
+  scanBuffer[raw] = (scanBuffer[raw] || 0) + 1;
+  const count = scanBuffer[raw];
+  const dots = '●'.repeat(count) + '○'.repeat(Math.max(0, SCAN_CONFIRM - count));
+  setStatus('Leyendo... ' + dots);
+  if (count < SCAN_CONFIRM) return;
+
+  // Confirmed
+  scanBuffer = {};
+  const code = raw.substring(0, 13);
   closeScanner();
   const inp = document.getElementById(scannerTargetId);
-  if (inp) { inp.value = raw; inp.focus(); inp.dispatchEvent(new Event('input')); }
-  if (typeof scannerCallback === 'function') scannerCallback(raw);
-  showToast('📷 ' + raw);
+  if (inp) { inp.value = code; inp.focus(); inp.dispatchEvent(new Event('input')); }
+  if (typeof scannerCallback === 'function') scannerCallback(code);
+  showToast('📷 ' + code);
 }
 
 async function startScanner() {
+  scanBuffer = {};
   try {
     const hints = new Map();
     hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, BARCODE_FORMATS);
     hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
 
-    const codeReader = new ZXing.BrowserMultiFormatReader(hints, 400);
+    const codeReader = new ZXing.BrowserMultiFormatReader(hints, 300);
     scannerReader = codeReader;
 
-    // List cameras
     const devices = await ZXing.BrowserMultiFormatReader.listVideoInputDevices();
     const sel = document.getElementById('scanner-camera-select');
     sel.innerHTML = '';
     devices.forEach((d, i) => {
       const opt = document.createElement('option');
       opt.value = d.deviceId;
-      opt.text = d.label || `Cámara ${i+1}`;
+      opt.text = d.label || 'Cámara ' + (i+1);
       sel.appendChild(opt);
     });
 
-    // Prefer back/environment camera
     const backCam = devices.find(d => /back|rear|trasera|environment/i.test(d.label));
     const deviceId = backCam ? backCam.deviceId : devices[0]?.deviceId;
     if (deviceId) sel.value = deviceId;
 
     setStatus('Apunta al código de barras...');
 
-    const constraints = {
-      video: deviceId
-        ? { deviceId: { exact: deviceId }, facingMode: 'environment' }
-        : { facingMode: { ideal: 'environment' } }
+    // High-res + continuous autofocus
+    const videoConstraints = {
+      facingMode: { ideal: 'environment' },
+      width:  { ideal: 1920 },
+      height: { ideal: 1080 },
     };
+    if (deviceId) videoConstraints.deviceId = { exact: deviceId };
 
-    await codeReader.decodeFromConstraints(constraints, 'scanner-video', (result, err) => {
-      if (result) onBarcodeDetected(result);
-    });
+    await codeReader.decodeFromConstraints(
+      { video: videoConstraints },
+      'scanner-video',
+      (result) => { if (result) onBarcodeDetected(result); }
+    );
+
+    // Apply continuous autofocus on the video track
+    const video = document.getElementById('scanner-video');
+    if (video && video.srcObject) {
+      const track = video.srcObject.getVideoTracks()[0];
+      if (track && track.applyConstraints) {
+        track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
+      }
+    }
 
   } catch(e) {
     try {
       setStatus('Apunta al código de barras...');
-      const codeReader2 = new ZXing.BrowserMultiFormatReader();
+      const hints2 = new Map([[ZXing.DecodeHintType.POSSIBLE_FORMATS, BARCODE_FORMATS], [ZXing.DecodeHintType.TRY_HARDER, true]]);
+      const codeReader2 = new ZXing.BrowserMultiFormatReader(hints2, 300);
       scannerReader = codeReader2;
       await codeReader2.decodeFromVideoDevice(undefined, 'scanner-video', (result) => {
         if (result) onBarcodeDetected(result);
       });
     } catch(e2) {
-      setStatus('⚠️ Sin acceso a la cámara — escribe el código');
+      setStatus('⚠️ Sin acceso a cámara — escribe el código manualmente');
     }
   }
 }
 
 function switchCamera(deviceId) {
   if (!deviceId || !scannerReader) return;
+  scanBuffer = {};
   try { scannerReader.reset(); } catch(e) {}
   const hints = new Map();
   hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, BARCODE_FORMATS);
   hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-  const reader = new ZXing.BrowserMultiFormatReader(hints, 400);
+  const reader = new ZXing.BrowserMultiFormatReader(hints, 300);
   scannerReader = reader;
   reader.decodeFromConstraints(
-    { video: { deviceId: { exact: deviceId } } },
+    { video: { deviceId: { exact: deviceId }, width: { ideal: 1920 }, height: { ideal: 1080 } } },
     'scanner-video',
     (result) => { if (result) onBarcodeDetected(result); }
   );
+  setStatus('Apunta al código de barras...');
 }
 
 function closeScanner() {
+  scanBuffer = {};
   if (scannerReader) { try { scannerReader.reset(); } catch(e){} scannerReader = null; }
   const video = document.getElementById('scanner-video');
   if (video && video.srcObject) {
@@ -2672,6 +2726,7 @@ function closeScanner() {
   }
   closeModal('scanner-modal');
 }
+
 
 // ===== iOS KEYBOARD FIX =====
 // Prevents the page from scrolling/shifting when the keyboard appears
