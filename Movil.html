@@ -2665,114 +2665,110 @@ async function startScanner() {
   const video = document.getElementById('scanner-video');
 
   try {
-    const hints = new Map();
-    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, BARCODE_FORMATS);
-    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-    const codeReader = new ZXing.BrowserMultiFormatReader(hints, 250);
-    scannerReader = codeReader;
-
-    // List cameras
-    const devices = await ZXing.BrowserMultiFormatReader.listVideoInputDevices();
+    // List cameras first
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoDevices = devices.filter(d => d.kind === 'videoinput');
     const sel = document.getElementById('scanner-camera-select');
     sel.innerHTML = '';
-    devices.forEach((d, i) => {
+    videoDevices.forEach((d, i) => {
       const opt = document.createElement('option');
       opt.value = d.deviceId;
       opt.text = d.label || 'Cámara ' + (i+1);
       sel.appendChild(opt);
     });
-    const backCam = devices.find(d => /back|rear|trasera|environment/i.test(d.label));
-    const deviceId = backCam ? backCam.deviceId : devices[0]?.deviceId;
+
+    // Prefer back camera
+    const backCam = videoDevices.find(d => /back|rear|trasera|environment/i.test(d.label));
+    const deviceId = backCam ? backCam.deviceId : videoDevices[videoDevices.length-1]?.deviceId;
     if (deviceId) sel.value = deviceId;
 
     setStatus('Iniciando cámara...');
 
-    // Step 1: Get the stream manually with high-res
+    // Get stream directly — iOS Safari compatible
     const stream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
       video: {
-        deviceId: deviceId ? { exact: deviceId } : undefined,
         facingMode: { ideal: 'environment' },
-        width:  { ideal: 3840 },
-        height: { ideal: 2160 },
-        aspectRatio: { ideal: 1.777 },
+        width:  { ideal: 1280 },
+        height: { ideal: 720 },
       }
     });
 
-    // Step 2: Assign stream to video element
+    // Attach to video
     video.srcObject = stream;
+    video.setAttribute('playsinline', true);
+    video.setAttribute('autoplay', true);
+    video.setAttribute('muted', true);
+    await new Promise(resolve => { video.onloadedmetadata = resolve; });
     await video.play();
 
-    // Step 3: Apply best focus settings on the track
+    // Try autofocus
     const track = stream.getVideoTracks()[0];
-    if (track) {
-      const caps = track.getCapabilities ? track.getCapabilities() : {};
-      const constraints = { advanced: [] };
-
-      // Continuous autofocus
-      if (caps.focusMode && caps.focusMode.includes('continuous')) {
-        constraints.advanced.push({ focusMode: 'continuous' });
-      }
-      // If torch/flash available, don't force it but allow it
-      // Zoom out to minimum for better close-up reading
-      if (caps.zoom) {
-        constraints.advanced.push({ zoom: caps.zoom.min });
-      }
-      // focusDistance: set to short range for close barcodes
-      if (caps.focusDistance) {
-        constraints.advanced.push({ focusDistance: caps.focusDistance.min });
-      }
-
-      if (constraints.advanced.length > 0) {
-        await track.applyConstraints(constraints).catch(() => {});
-      }
+    if (track && track.applyConstraints) {
+      track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
     }
 
     setStatus('Apunta al código de barras...');
 
-    // Step 4: Feed the already-playing video to ZXing decoder
-    await codeReader.decodeFromVideoElement(video, (result) => {
-      if (result) onBarcodeDetected(result);
-    });
+    // Use ZXing hints
+    const hints = new Map();
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, BARCODE_FORMATS);
+    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+    const codeReader = new ZXing.BrowserMultiFormatReader(hints, 300);
+    scannerReader = codeReader;
+
+    // Decode loop using canvas — most compatible with iOS
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    let decoding = true;
+
+    async function decodeLoop() {
+      if (!decoding || !video.srcObject) return;
+      if (video.readyState >= 2) {
+        canvas.width  = video.videoWidth  || 640;
+        canvas.height = video.videoHeight || 480;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        try {
+          const result = codeReader.decodeFromCanvas(canvas);
+          if (result) { decoding = false; onBarcodeDetected(result); return; }
+        } catch(e) { /* no code found, continue */ }
+      }
+      requestAnimationFrame(decodeLoop);
+    }
+
+    // Store stop function
+    scannerReader._stopDecode = () => { decoding = false; };
+    decodeLoop();
 
   } catch(e) {
-    // Fallback: let ZXing handle everything
-    try {
-      setStatus('Apunta al código de barras...');
-      const hints2 = new Map([[ZXing.DecodeHintType.POSSIBLE_FORMATS, BARCODE_FORMATS],[ZXing.DecodeHintType.TRY_HARDER, true]]);
-      const codeReader2 = new ZXing.BrowserMultiFormatReader(hints2, 250);
-      scannerReader = codeReader2;
-      await codeReader2.decodeFromVideoDevice(undefined, 'scanner-video', (result) => {
-        if (result) onBarcodeDetected(result);
-      });
-    } catch(e2) {
-      setStatus('⚠️ Sin acceso a cámara — escribe el código manualmente');
-    }
+    console.error('Scanner error:', e);
+    setStatus('⚠️ Sin acceso a cámara — escribe el código manualmente');
   }
 }
 
 function switchCamera(deviceId) {
   if (!deviceId) return;
   scanBuffer = {};
-  // Stop existing stream
   const video = document.getElementById('scanner-video');
   if (video && video.srcObject) {
     video.srcObject.getTracks().forEach(t => t.stop());
     video.srcObject = null;
   }
-  if (scannerReader) { try { scannerReader.reset(); } catch(e){} scannerReader = null; }
-  // Restart with new device
-  const savedTarget = scannerTargetId;
-  const savedCb = scannerCallback;
-  scannerTargetId = savedTarget;
-  scannerCallback = savedCb;
+  if (scannerReader) {
+    if (scannerReader._stopDecode) scannerReader._stopDecode();
+    try { scannerReader.reset(); } catch(e) {}
+    scannerReader = null;
+  }
   startScanner();
-  // Update select to chosen device
-  document.getElementById('scanner-camera-select').value = deviceId;
 }
 
 function closeScanner() {
   scanBuffer = {};
-  if (scannerReader) { try { scannerReader.reset(); } catch(e){} scannerReader = null; }
+  if (scannerReader) {
+    if (scannerReader._stopDecode) scannerReader._stopDecode();
+    try { scannerReader.reset(); } catch(e) {}
+    scannerReader = null;
+  }
   const video = document.getElementById('scanner-video');
   if (video && video.srcObject) {
     video.srcObject.getTracks().forEach(t => t.stop());
