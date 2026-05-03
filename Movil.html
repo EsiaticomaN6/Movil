@@ -1576,9 +1576,7 @@ function addToCart(pid) {
     cart.push({ id: pid, name: prod.name, price: prod.price, qty: 1 });
   }
   updateCartBadge();
-  // Cerrar ventana de búsqueda y abrir carrito
-  closeModal('product-search-modal');
-  openCart();
+  showToast('✅ Agregado al carrito');
 }
 
 function updateCartBadge() {
