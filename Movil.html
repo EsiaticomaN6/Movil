@@ -276,39 +276,53 @@ body {
 .topbar {
   background: var(--card);
   border-bottom: 1px solid var(--border);
-  padding: 10px 16px;
+  padding: 8px 12px;
   display: flex; align-items: center; justify-content: space-between;
   flex-shrink: 0;
-  min-height: 54px;
+  min-height: 52px;
+  max-height: 52px;
+  overflow: hidden;
 }
 
-.topbar-left { display: flex; align-items: center; gap: 12px; }
-.topbar-right { display: flex; align-items: center; gap: 8px; }
-.hamburger { display: none; background: none; border: none; font-size: 22px; cursor: pointer; color: var(--text); flex-shrink:0; }
+.topbar-left { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
+.topbar-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.hamburger { display: none; background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text); flex-shrink:0; }
 
 @media (max-width: 640px) { .hamburger { display: block; } }
 
-.topbar-title { font-size: 16px; font-weight: 800; color: var(--text); line-height: 1.2; }
-.topbar-date { font-size: 11px; color: var(--text3); font-family: 'JetBrains Mono', monospace; line-height: 1.2; }
+.topbar-title-wrap { min-width: 0; overflow: hidden; }
+.topbar-title {
+  font-size: 14px; font-weight: 800; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  line-height: 1.2; display: block;
+}
+.topbar-date {
+  font-size: 10px; color: var(--text3);
+  font-family: 'JetBrains Mono', monospace;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: block; line-height: 1.2;
+}
 
 .topbar-user-chip {
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; gap: 6px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 20px;
-  padding: 6px 12px 6px 6px;
+  padding: 4px 8px 4px 4px;
   cursor: pointer;
   transition: background .15s;
+  flex-shrink: 0;
 }
 .topbar-user-chip:hover { background: #eef1fe; }
 
 .topbar-avatar {
-  width: 30px; height: 30px; border-radius: 50%;
+  width: 26px; height: 26px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-size: 13px; font-weight: 800; color: #fff;
+  font-size: 11px; font-weight: 800; color: #fff;
   flex-shrink: 0;
 }
-.topbar-uname { font-size: 13px; font-weight: 700; color: var(--text); line-height: 1.2; }
+.topbar-uname { font-size: 12px; font-weight: 700; color: var(--text); line-height: 1.2; }
+
 
 
 /* ========== MAIN CONTENT ========== */
@@ -785,11 +799,13 @@ body {
   color: var(--red);
   border: 2px solid #fecaca;
   border-radius: 10px;
-  padding: 8px 14px;
+  padding: 6px 10px;
   font-family: inherit;
-  font-size: 12px; font-weight: 700;
+  font-size: 11px; font-weight: 700;
   cursor: pointer;
-  display: flex; align-items: center; gap: 6px;
+  display: flex; align-items: center; gap: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* Received amount display */
@@ -948,20 +964,20 @@ body {
     <div class="topbar">
       <div class="topbar-left">
         <button class="hamburger" onclick="toggleSidebar()">☰</button>
-        <div style="display:flex;flex-direction:column;gap:1px">
+        <div class="topbar-title-wrap">
           <span class="topbar-title" id="topbar-title">Punto de Venta</span>
-          <span class="topbar-date" id="topbar-date" style="font-size:11px;color:var(--text3)"></span>
+          <span class="topbar-date" id="topbar-date"></span>
         </div>
       </div>
       <div class="topbar-right">
         <div class="topbar-user-chip" onclick="logoutPrompt()">
           <div class="topbar-avatar" id="topbar-avatar" style="background:var(--accent)">A</div>
-          <div style="display:flex;flex-direction:column;gap:1px">
-            <span class="topbar-uname" id="topbar-uname" style="font-size:13px;font-weight:700;line-height:1">Admin</span>
-            <span style="font-size:10px;color:var(--text3);line-height:1" id="topbar-role">Administrador</span>
+          <div class="topbar-name-wrap" style="display:flex;flex-direction:column;gap:0">
+            <span class="topbar-uname" id="topbar-uname">Admin</span>
+            <span style="font-size:9px;color:var(--text3);line-height:1" id="topbar-role">Administrador</span>
           </div>
         </div>
-        <button class="corte-btn" onclick="corteDeCaja()">🏧 Corte</button>
+        <button class="corte-btn" onclick="corteDeCaja()" style="padding:6px 10px;font-size:11px">🏧 Corte</button>
       </div>
     </div>
 
@@ -978,6 +994,9 @@ body {
         <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
           <button onclick="openCart()" style="background:var(--accent);color:#fff;border:none;border-radius:10px;padding:12px 20px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:8px">
             🛒 Ver Carrito (<span id="cart-count">0</span>)
+          </button>
+          <button onclick="openManualProduct()" style="background:var(--card);color:var(--text);border:2px solid var(--border);border-radius:10px;padding:12px 20px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:8px">
+            ✏️ Agregar Manual
           </button>
         </div>
 
@@ -1139,6 +1158,31 @@ body {
             <input class="input-field" id="cfg-ticketmsg" value="¡Gracias por su compra!" style="width:200px" onchange="saveConfig()">
           </div>
         </div>
+
+        <div class="config-section">
+          <h3>🔒 Seguridad</h3>
+          <div style="font-size:13px;color:var(--text2);margin-bottom:16px">
+            Cambia la contraseña de tu usuario: <strong id="cfg-current-user-name"></strong>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div class="form-group">
+              <label>Contraseña actual</label>
+              <input class="input-field" id="cfg-pw-current" type="password" placeholder="Dejar vacío si no tienes contraseña">
+            </div>
+            <div class="form-group">
+              <label>Nueva contraseña</label>
+              <input class="input-field" id="cfg-pw-new" type="password" placeholder="Nueva contraseña">
+            </div>
+            <div class="form-group">
+              <label>Confirmar nueva contraseña</label>
+              <input class="input-field" id="cfg-pw-confirm" type="password" placeholder="Repite la nueva contraseña">
+            </div>
+            <div id="cfg-pw-error" style="color:var(--red);font-size:13px;display:none"></div>
+            <button onclick="changePassword()" class="btn btn-primary" style="align-self:flex-start;padding:12px 24px">
+              🔒 Guardar contraseña
+            </button>
+          </div>
+        </div>
       </div>
 
     </div><!-- /main-content -->
@@ -1208,6 +1252,20 @@ body {
             <div class="change-label">Cambio</div>
             <div class="change-amount" id="change-amount">$0.00</div>
           </div>
+        </div>
+
+        <!-- WhatsApp -->
+        <div style="margin-top:12px">
+          <div style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">📱 Enviar ticket por WhatsApp</div>
+          <div style="display:flex;gap:8px">
+            <input class="input-field" id="cart-wa-phone" type="tel" inputmode="numeric"
+              placeholder="Ej: 5512345678" style="flex:1"
+              value="">
+            <button onclick="sendWhatsApp()" style="background:#25d366;color:#fff;border:none;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit">
+              📲 Enviar
+            </button>
+          </div>
+          <div style="font-size:10px;color:var(--text3);margin-top:4px">10 dígitos sin espacios ni guiones (opcional)</div>
         </div>
       </div>
 
@@ -1346,6 +1404,80 @@ body {
   <div class="ctx-item" onclick="ctxAddStock()">📦 Agregar Stock</div>
   <div class="ctx-item" onclick="ctxViewHistory()">📋 Ver Movimientos</div>
   <div class="ctx-item danger" onclick="ctxDelete()">🗑️ Eliminar</div>
+</div>
+
+<!-- ===== TICKET MODAL ===== -->
+<div class="modal-overlay" id="ticket-modal">
+  <div class="modal-box" style="max-width:420px;width:100%;max-height:90vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div>
+        <div class="modal-title" style="margin:0">🎉 Venta completada</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:2px">
+          <span id="ticket-num"></span> · <span id="ticket-total" style="color:var(--accent);font-weight:700"></span>
+        </div>
+      </div>
+      <button onclick="closeModal('ticket-modal')" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text2)">✕</button>
+    </div>
+
+    <!-- Ticket preview -->
+    <textarea id="ticket-text" readonly
+      style="width:100%;height:220px;background:var(--surface);border:1.5px solid var(--border);
+             border-radius:10px;padding:12px;font-family:'JetBrains Mono',monospace;font-size:12px;
+             color:var(--text);resize:none;line-height:1.6;outline:none"></textarea>
+
+    <!-- WhatsApp send -->
+    <div style="margin-top:14px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;padding:14px">
+      <div style="font-size:13px;font-weight:700;color:#15803d;margin-bottom:10px">📲 Enviar por WhatsApp</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <div style="display:flex;align-items:center;gap:6px;background:#fff;border:1.5px solid #86efac;border-radius:8px;padding:4px 10px;flex:1">
+          <span style="font-size:13px;color:#6b7280;font-weight:600">+52</span>
+          <input id="ticket-wa-phone" type="tel" inputmode="numeric" maxlength="10"
+            placeholder="Número de 10 dígitos"
+            style="border:none;outline:none;font-family:inherit;font-size:14px;width:100%;background:transparent">
+        </div>
+        <button onclick="sendTicketWhatsApp()"
+          style="background:#25d366;color:#fff;border:none;border-radius:10px;
+                 padding:10px 16px;font-family:inherit;font-size:13px;font-weight:700;
+                 cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+          Enviar
+        </button>
+      </div>
+      <div style="font-size:10px;color:#16a34a;margin-top:6px">Se abrirá WhatsApp con el ticket listo para enviar</div>
+    </div>
+
+    <button onclick="closeModal('ticket-modal')" class="btn btn-secondary" style="width:100%;margin-top:12px">
+      Cerrar
+    </button>
+  </div>
+</div>
+
+<!-- ===== MANUAL PRODUCT MODAL ===== -->
+<div class="modal-overlay" id="manual-product-modal">
+  <div class="modal-box" style="max-width:360px;width:100%">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <div class="modal-title" style="margin:0">✏️ Agregar Manual</div>
+      <button onclick="closeModal('manual-product-modal')" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text2)">✕</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="form-group">
+        <label>Descripción *</label>
+        <input class="input-field" id="mp-name" placeholder="Ej: Producto sin código">
+      </div>
+      <div class="form-group">
+        <label>Precio *</label>
+        <input class="input-field" id="mp-price" type="number" min="0" step="0.01" placeholder="0.00" inputmode="decimal">
+      </div>
+      <div class="form-group">
+        <label>Cantidad</label>
+        <input class="input-field" id="mp-qty" type="number" min="1" value="1" inputmode="numeric">
+      </div>
+    </div>
+    <div class="btn-row" style="margin-top:20px">
+      <button class="btn btn-secondary" onclick="closeModal('manual-product-modal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="addManualProduct()">➕ Agregar</button>
+    </div>
+  </div>
 </div>
 
 <!-- Scanner Modal — mismo motor que FarmaciaIRE (Quagga2 + BarcodeDetector) -->
@@ -1503,6 +1635,16 @@ function navigate(page, el) {
   document.getElementById('page-' + page).classList.add('active');
   const titles = { pos:'Punto de Venta', inventory:'Inventario', consulta:'Consulta', sales:'Historial de Ventas', reports:'Reportes', users:'Usuarios', config:'Configuración' };
   document.getElementById('topbar-title').textContent = titles[page] || page;
+  // Update security section with current user name
+  if (page === 'config') {
+    const el = document.getElementById('cfg-current-user-name');
+    if (el && currentUser) el.textContent = currentUser.name;
+    // Clear password fields
+    ['cfg-pw-current','cfg-pw-new','cfg-pw-confirm'].forEach(id => {
+      const f = document.getElementById(id); if(f) f.value = '';
+    });
+    document.getElementById('cfg-pw-error').style.display = 'none';
+  }
   closeSidebar();
 }
 
@@ -1599,34 +1741,34 @@ function renderCartItems() {
   list.innerHTML = cart.map(item => `
     <div class="cart-item">
       <div class="cart-item-info">
-        <div class="cart-item-name">${item.name}</div>
+        <div class="cart-item-name">${item.name}${item.manual ? ' <span style="font-size:10px;background:#fef3c7;color:#b45309;padding:2px 6px;border-radius:4px;font-weight:700">MANUAL</span>' : ''}</div>
         <div class="cart-item-price">$${item.price.toFixed(2)} c/u</div>
       </div>
       <div class="qty-ctrl">
-        <button class="qty-btn" onclick="changeQty(${item.id},-1)">−</button>
+        <button class="qty-btn" onclick="changeQty('${item.id}',-1)">−</button>
         <span class="qty-num">${item.qty}</span>
-        <button class="qty-btn" onclick="changeQty(${item.id},1)">+</button>
+        <button class="qty-btn" onclick="changeQty('${item.id}',1)">+</button>
       </div>
       <div style="font-weight:800;font-size:14px;color:var(--accent);min-width:64px;text-align:right">$${(item.price*item.qty).toFixed(2)}</div>
-      <button class="remove-btn" onclick="removeFromCart(${item.id})">🗑️</button>
+      <button class="remove-btn" onclick="removeFromCart('${item.id}')">🗑️</button>
     </div>`).join('');
   totals.style.display = 'block';
   updateCartTotals();
 }
 
 function changeQty(pid, delta) {
-  const item = cart.find(c => c.id === pid);
+  const item = cart.find(c => String(c.id) === String(pid));
   if (!item) return;
   const prod = products.find(p => p.id === pid);
   item.qty += delta;
-  if (item.qty <= 0) cart = cart.filter(c => c.id !== pid);
+  if (item.qty <= 0) cart = cart.filter(c => String(c.id) !== String(pid));
   else if (prod && item.qty > prod.stock) item.qty = prod.stock;
   updateCartBadge();
   renderCartItems();
 }
 
 function removeFromCart(pid) {
-  cart = cart.filter(c => c.id !== pid);
+  cart = cart.filter(c => String(c.id) !== String(pid));
   updateCartBadge();
   renderCartItems();
 }
@@ -1685,10 +1827,10 @@ function processSale() {
   const afterDisc = sub - disc;
   const iva = afterDisc * ivaPct / 100;
   const total = afterDisc + iva;
+  const recv = parseFloat(document.getElementById('cart-received').value)||0;
 
-  if (selectedPayment === 'cash') {
-    const recv = parseFloat(document.getElementById('cart-received').value)||0;
-    if (recv < total) { showToast('⚠️ Monto recibido insuficiente'); return; }
+  if (selectedPayment === 'cash' && recv < total) {
+    showToast('⚠️ Monto recibido insuficiente'); return;
   }
 
   // Discount stock
@@ -1708,10 +1850,16 @@ function processSale() {
     iva,
     total,
     payment: selectedPayment,
+    received: recv,
+    change: Math.max(0, recv - total),
     date: new Date().toISOString()
   };
   sales.unshift(sale);
   save('sales', sales);
+
+  // Save phone for next time
+  const phone = (document.getElementById('cart-wa-phone').value||'').trim();
+  if (phone) localStorage.setItem('fire_last_wa', phone);
 
   cart = [];
   updateCartBadge();
@@ -1720,7 +1868,76 @@ function processSale() {
   renderSales();
   renderReports();
   renderTodaySales();
-  showToast(`🎉 Venta ${sale.ticketNum} completada — ${fmt(total)}`);
+
+  // Show ticket modal
+  showTicketModal(sale);
+}
+
+// ===== TICKET =====
+function buildTicketText(sale) {
+  const cfg = config;
+  const farmName = cfg.name || 'Farmacia IRE';
+  const date = new Date(sale.date).toLocaleString('es-MX');
+  const methodNames = { cash:'Efectivo', card:'Tarjeta', transfer:'Transferencia' };
+  const lines = sale.items.map(i =>
+    `  ${i.name} x${i.qty}  ${fmt(i.price * i.qty)}`
+  ).join('\n');
+
+  let ticket = `🏥 *${farmName}*\n`;
+  ticket += `📋 Ticket: ${sale.ticketNum}\n`;
+  ticket += `📅 ${date}\n`;
+  ticket += `👤 ${sale.user}\n`;
+  ticket += `─────────────────\n`;
+  ticket += `${lines}\n`;
+  ticket += `─────────────────\n`;
+  if (sale.discount > 0) ticket += `Descuento: -${fmt(sale.discount)}\n`;
+  if (sale.iva > 0)      ticket += `IVA: ${fmt(sale.iva)}\n`;
+  ticket += `*TOTAL: ${fmt(sale.total)}*\n`;
+  ticket += `Pago: ${methodNames[sale.payment]||sale.payment}\n`;
+  if (sale.payment === 'cash' && sale.received > 0) {
+    ticket += `Recibido: ${fmt(sale.received)}\n`;
+    ticket += `Cambio: ${fmt(sale.change)}\n`;
+  }
+  ticket += `─────────────────\n`;
+  ticket += `${cfg.ticketmsg || '¡Gracias por su compra!'}`;
+  return ticket;
+}
+
+function showTicketModal(sale) {
+  const text = buildTicketText(sale);
+  document.getElementById('ticket-text').value = text;
+  document.getElementById('ticket-num').textContent = sale.ticketNum;
+  document.getElementById('ticket-total').textContent = fmt(sale.total);
+  // Pre-fill phone from last used
+  const lastPhone = localStorage.getItem('fire_last_wa') || '';
+  document.getElementById('ticket-wa-phone').value = lastPhone;
+  openModal('ticket-modal');
+}
+
+function sendTicketWhatsApp() {
+  const phone = document.getElementById('ticket-wa-phone').value.replace(/\D/g,'');
+  const text  = document.getElementById('ticket-text').value;
+  if (!phone || phone.length < 10) { showToast('⚠️ Ingresa un número válido de 10 dígitos'); return; }
+  localStorage.setItem('fire_last_wa', phone);
+  const fullPhone = '52' + phone; // Mexico country code
+  const url = `https://wa.me/${fullPhone}?text=${encodeURIComponent(text)}`;
+  window.open(url, '_blank');
+}
+
+function sendWhatsApp() {
+  // Send from cart (before cobrar) — build preview
+  const sub = cart.reduce((a,c) => a + c.price*c.qty, 0);
+  const discPct = parseFloat(document.getElementById('cart-discount').value)||0;
+  const ivaPct  = parseFloat(document.getElementById('cart-iva').value)||0;
+  const disc = sub * discPct / 100;
+  const total = (sub - disc) * (1 + ivaPct/100);
+  const phone = (document.getElementById('cart-wa-phone').value||'').replace(/\D/g,'');
+  if (!phone || phone.length < 10) { showToast('⚠️ Ingresa un número de 10 dígitos'); return; }
+
+  const lines = cart.map(i => `  ${i.name} x${i.qty}  ${fmt(i.price*i.qty)}`).join('\n');
+  const text = `🏥 *${config.name||'Farmacia IRE'}*\n📋 Cotización\n─────────────────\n${lines}\n─────────────────\n*TOTAL: ${fmt(total)}*\n${config.ticketmsg||'¡Gracias por su compra!'}`;
+  const fullPhone = '52' + phone;
+  window.open(`https://wa.me/${fullPhone}?text=${encodeURIComponent(text)}`, '_blank');
 }
 
 function renderTodaySales() {
@@ -1920,23 +2137,22 @@ function importExcel(input) {
       const data = new Uint8Array(e.target.result);
       const wb   = XLSX.read(data, { type: 'array', cellDates: true });
       const ws   = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      // raw:true to get all rows, defval:'' to avoid undefined
+      const rows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
 
       if (!rows.length) { showToast('⚠️ El archivo está vacío'); return; }
 
-      // Normaliza un encabezado: quita acentos, puntos, espacios y pasa a minúsculas
+      // Normaliza encabezado: quita acentos, puntos, espacios → minúsculas
       function norm(s) {
-        return String(s)
-          .normalize('NFD').replace(/[\u0300-\u036f]/g,'') // quita acentos
-          .toLowerCase()
-          .replace(/[^a-z0-9]/g,'');                        // solo alfanumérico
+        return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+          .toLowerCase().replace(/[^a-z0-9]/g,'');
       }
 
-      // Construye mapa normalizado -> clave original en la primera fila
+      // Construye mapa normalizado → clave original
       const colMap = {};
-      if (rows.length) Object.keys(rows[0]).forEach(k => { colMap[norm(k)] = k; });
+      Object.keys(rows[0]).forEach(k => { colMap[norm(k)] = k; });
 
-      // Obtiene valor de una columna por cualquiera de sus alias normalizados
+      // Obtiene valor por alias
       const col = (row, ...aliases) => {
         for (const alias of aliases) {
           const key = colMap[norm(alias)];
@@ -1947,67 +2163,83 @@ function importExcel(input) {
       };
 
       let added = 0, updated = 0, skipped = 0;
-      rows.forEach(row => {
-        // Columna Código (SKU) — la usamos si existe
-        const skuVal  = String(col(row, 'Código', 'Codigo', 'SKU', 'Code') || '').trim();
-        // Código de barras: Excel lo guarda como número, convertir a string sin decimales
-        const rawBarcode = col(row, 'Cód. Barras', 'Cod. Barras', 'CodigoBarras', 'Barcode', 'Codigo de Barras');
-        const barcode = rawBarcode !== '' ? String(Math.round(Number(rawBarcode))) : '';
-        const name    = String(col(row, 'Nombre', 'Name', 'Producto') || '').trim();
-        if (!name) { skipped++; return; }
+      let idCounter = Date.now();
 
+      rows.forEach(row => {
+        // Nombre obligatorio
+        const name = String(col(row, 'Nombre', 'Name', 'Producto') || '').trim();
+        if (!name || name === '' || /^[\s\-—]*$/.test(name)) { skipped++; return; }
+
+        // SKU
+        const skuVal = String(col(row, 'Código', 'Codigo', 'SKU', 'Code') || '').trim();
+
+        // Código de barras — puede venir como número, string o científica
+        const rawBarcode = col(row, 'Cód. Barras', 'Cod. Barras', 'CodigoBarras', 'Barcode', 'Codigo de Barras');
+        let barcode = '';
+        if (rawBarcode !== '' && rawBarcode !== null && rawBarcode !== undefined) {
+          // Maneja notación científica (ej: 7.50135e+12)
+          const num = Number(rawBarcode);
+          barcode = isNaN(num) ? String(rawBarcode).trim() : String(Math.round(num));
+        }
+
+        // Fecha vencimiento
         const rawExpiry = col(row, 'Vencimiento', 'Vence', 'Expiry', 'FechaVencimiento');
         let expiry = '';
         if (rawExpiry instanceof Date) {
           expiry = rawExpiry.toISOString().split('T')[0];
         } else if (rawExpiry) {
           expiry = String(rawExpiry).trim();
+          // Convierte formato dd/mm/yyyy a yyyy-mm-dd
+          const partsSlash = expiry.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+          if (partsSlash) expiry = `${partsSlash[3]}-${partsSlash[2].padStart(2,'0')}-${partsSlash[1].padStart(2,'0')}`;
         }
 
         const incoming = {
-          sku:            skuVal || undefined,
-          barcode:        barcode,
-          name:           name,
+          barcode,
+          name,
           desc:           String(col(row, 'Descripción', 'Descripcion', 'Desc') || ''),
           dept:           String(col(row, 'Departamento', 'Depto', 'Dept') || ''),
           lab:            String(col(row, 'Laboratorio', 'Lab', 'Marca', 'Brand') || ''),
-          price:          parseFloat(col(row, 'Precio Venta', 'PrecioVenta', 'Precio', 'Price') || 0),
-          pricewholesale: parseFloat(col(row, 'Precio Mayoreo', 'PrecioMayoreo', 'Mayoreo', 'Wholesale') || 0),
-          cost:           parseFloat(col(row, 'Costo', 'Cost') || 0),
-          stock:          parseInt(col(row,  'Stock Actual', 'StockActual', 'Stock') || 0),
-          min:            parseInt(col(row,  'Stock Mín', 'Stock Min', 'StockMin', 'Min', 'Minimo') || 0),
-          max:            parseInt(col(row,  'Stock Máx', 'Stock Max', 'StockMax', 'Max', 'Maximo') || 0),
+          price:          parseFloat(col(row, 'Precio Venta', 'PrecioVenta', 'Precio', 'Price') || 0) || 0,
+          pricewholesale: parseFloat(col(row, 'Precio Mayoreo', 'PrecioMayoreo', 'Mayoreo', 'Wholesale') || 0) || 0,
+          cost:           parseFloat(col(row, 'Costo', 'Cost') || 0) || 0,
+          stock:          parseInt(col(row, 'Stock Actual', 'StockActual', 'Stock') || 0) || 0,
+          min:            parseInt(col(row, 'Stock Mín', 'Stock Min', 'StockMin', 'Min', 'Minimo') || 0) || 0,
+          max:            parseInt(col(row, 'Stock Máx', 'Stock Max', 'StockMax', 'Max', 'Maximo') || 0) || 0,
           unit:           String(col(row, 'Unidad', 'Unit', 'Presentacion') || ''),
           expiry,
         };
 
-        // Elimina undefined para no sobreescribir SKU existente con undefined
-        if (!incoming.sku) delete incoming.sku;
+        if (skuVal) incoming.sku = skuVal;
 
-        // Busca coincidencia: por código de barras, luego por nombre
-        const existing = barcode
-          ? products.find(p => p.barcode === barcode)
-          : products.find(p => p.name.toLowerCase() === name.toLowerCase());
+        // Busca coincidencia: por código de barras (si no está vacío), luego por nombre exacto
+        let existing = null;
+        if (barcode) {
+          existing = products.find(p => p.barcode === barcode);
+        }
+        if (!existing) {
+          existing = products.find(p => p.name.trim().toLowerCase() === name.toLowerCase());
+        }
 
         if (existing) {
           Object.assign(existing, incoming);
           updated++;
         } else {
-          incoming.id = Date.now() + Math.random();
-          // Asigna SKU si no venía en el Excel
+          incoming.id = ++idCounter;
           if (!incoming.sku) {
-            const prefix = (incoming.dept||'GEN').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z]/g,'').substring(0,3).padEnd(3,'X');
-            incoming.sku = `${prefix}-${String(products.length+1).padStart(4,'0')}`;
+            const prefix = (incoming.dept||'GEN').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+              .toUpperCase().replace(/[^A-Z]/g,'').substring(0,3).padEnd(3,'X');
+            incoming.sku = `${prefix}-${String(products.length + added + 1).padStart(4,'0')}`;
           }
           products.push(incoming);
           added++;
         }
       });
 
-      assignSKUs(); // garantiza que todos tengan SKU
+      assignSKUs();
       save('products', products);
       renderInventory();
-      showToast(`✅ ${added} agregados · ${updated} actualizados · ${skipped} omitidos`);
+      showToast(`✅ ${added} agregados · ${updated} actualizados · ${skipped} omitidos de ${rows.length} filas`);
     } catch(err) {
       showToast('❌ Error al leer el archivo Excel');
       console.error(err);
@@ -2016,6 +2248,7 @@ function importExcel(input) {
   };
   reader.readAsArrayBuffer(file);
 }
+
 
 // Context menu
 function showCtxMenu(e, pid) {
@@ -2342,6 +2575,50 @@ function deleteUser(id) {
   }
 }
 
+function changePassword() {
+  const current = document.getElementById('cfg-pw-current').value;
+  const newPw    = document.getElementById('cfg-pw-new').value;
+  const confirm  = document.getElementById('cfg-pw-confirm').value;
+  const errEl    = document.getElementById('cfg-pw-error');
+
+  errEl.style.display = 'none';
+
+  // Validate current password
+  if (currentUser.password && current !== currentUser.password) {
+    errEl.textContent = '❌ La contraseña actual no es correcta';
+    errEl.style.display = 'block';
+    return;
+  }
+  if (!newPw) {
+    errEl.textContent = '❌ Escribe una nueva contraseña';
+    errEl.style.display = 'block';
+    return;
+  }
+  if (newPw !== confirm) {
+    errEl.textContent = '❌ Las contraseñas no coinciden';
+    errEl.style.display = 'block';
+    return;
+  }
+  if (newPw.length < 4) {
+    errEl.textContent = '❌ La contraseña debe tener al menos 4 caracteres';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  // Save
+  const idx = users.findIndex(u => u.id === currentUser.id);
+  if (idx >= 0) users[idx].password = newPw;
+  currentUser.password = newPw;
+  save('users', users);
+
+  // Clear fields
+  document.getElementById('cfg-pw-current').value = '';
+  document.getElementById('cfg-pw-new').value     = '';
+  document.getElementById('cfg-pw-confirm').value = '';
+
+  showToast('✅ Contraseña actualizada');
+}
+
 // ===== CONFIG =====
 function loadConfig() {
   document.getElementById('cfg-name').value = config.name || 'Farmacia IRE';
@@ -2432,6 +2709,29 @@ function loadLogo() {
 }
 
 // ===== BARCODE SCANNER =====
+function openManualProduct() {
+  document.getElementById('mp-name').value  = '';
+  document.getElementById('mp-price').value = '';
+  document.getElementById('mp-qty').value   = '1';
+  openModal('manual-product-modal');
+  setTimeout(() => document.getElementById('mp-name').focus(), 200);
+}
+
+function addManualProduct() {
+  const name  = document.getElementById('mp-name').value.trim();
+  const price = parseFloat(document.getElementById('mp-price').value) || 0;
+  const qty   = parseInt(document.getElementById('mp-qty').value)     || 1;
+  if (!name)    { showToast('⚠️ Escribe una descripción'); return; }
+  if (price <= 0){ showToast('⚠️ El precio debe ser mayor a 0'); return; }
+
+  // Use a temporary ID that won't clash with real products
+  const tempId = 'manual_' + Date.now();
+  cart.push({ id: tempId, name, price, qty, manual: true });
+  updateCartBadge();
+  closeModal('manual-product-modal');
+  showToast('✅ ' + name + ' agregado');
+}
+
 // ===== SCANNER — motor Quagga2 + BarcodeDetector (mismo que FarmaciaIRE) =====
 (function(){
 'use strict';
