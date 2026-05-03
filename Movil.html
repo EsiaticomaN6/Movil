@@ -1704,6 +1704,8 @@ function addToCart(pid) {
     cart.push({ id: pid, name: prod.name, price: prod.price, qty: 1 });
   }
   updateCartBadge();
+  // Cerrar ventana de búsqueda al agregar
+  closeModal('product-search-modal');
   showToast('✅ Agregado al carrito');
 }
 
@@ -1712,6 +1714,12 @@ function updateCartBadge() {
 }
 
 function openCart() {
+  // Limpiar campos del ticket antes de mostrar
+  document.getElementById('cart-received').value = '';
+  document.getElementById('cart-discount').value = '0';
+  document.getElementById('cart-iva').value = '0';
+  document.getElementById('change-display').classList.remove('show');
+  selectPayment('cash');
   renderCartItems();
   openModal('cart-modal');
 }
