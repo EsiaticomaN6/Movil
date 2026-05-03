@@ -875,13 +875,13 @@ body {
   pointer-events: none;
 }
 
-/* The scanning window */
+/* Square scanning window */
 .scanner-window {
   position: absolute;
   top: 50%; left: 50%;
   transform: translate(-50%,-50%);
-  width: 88%;
-  height: 55%;
+  width: 72%;
+  aspect-ratio: 1/1;
   box-shadow: 0 0 0 9999px rgba(0,0,0,.55);
   border-radius: 4px;
 }
@@ -2687,28 +2687,23 @@ const BARCODE_FORMATS = [
   ZXing.BarcodeFormat.ITF,
 ];
 
-// Confirmation buffer — same code must be read N times before accepting
 let scanBuffer = {};
-const SCAN_CONFIRM = 3;
+const SCAN_CONFIRM = 2;
 
 function onBarcodeDetected(result) {
   if (!result) return;
   const raw = result.getText().trim();
   if (!raw || raw.length < 6 || raw.length > 14) return;
 
-  // For numeric-only formats, reject if not all digits
   const bfmt = result.getBarcodeFormat ? result.getBarcodeFormat() : null;
   const numericFmts = [ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8, ZXing.BarcodeFormat.UPC_A, ZXing.BarcodeFormat.UPC_E];
   if (numericFmts.includes(bfmt) && !/^\d+$/.test(raw)) return;
 
-  // Accumulate confirmations
   scanBuffer[raw] = (scanBuffer[raw] || 0) + 1;
   const count = scanBuffer[raw];
-  const dots = '●'.repeat(count) + '○'.repeat(Math.max(0, SCAN_CONFIRM - count));
-  setStatus('Leyendo... ' + dots);
+  setStatus('Leyendo... ' + '●'.repeat(count) + '○'.repeat(Math.max(0, SCAN_CONFIRM - count)));
   if (count < SCAN_CONFIRM) return;
 
-  // Confirmed
   scanBuffer = {};
   const code = raw.substring(0, 13);
   closeScanner();
@@ -2720,139 +2715,43 @@ function onBarcodeDetected(result) {
 
 async function startScanner() {
   scanBuffer = {};
-  const video = document.getElementById('scanner-video');
+
+  // Build ZXing reader with hints
+  const hints = new Map();
+  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, BARCODE_FORMATS);
+  hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+  const codeReader = new ZXing.BrowserMultiFormatReader(hints, 500);
+  scannerReader = codeReader;
 
   try {
-    // List cameras
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const videoDevices = devices.filter(d => d.kind === 'videoinput');
-    const sel = document.getElementById('scanner-camera-select');
-    sel.innerHTML = '';
-    videoDevices.forEach((d, i) => {
-      const opt = document.createElement('option');
-      opt.value = d.deviceId;
-      opt.text = d.label || 'Cámara ' + (i+1);
-      sel.appendChild(opt);
-    });
-    const backCam = videoDevices.find(d => /back|rear|trasera|environment/i.test(d.label))
-                  || videoDevices[videoDevices.length - 1];
-    if (backCam) sel.value = backCam.deviceId;
-
     setStatus('Iniciando cámara...');
 
-    // Get video stream — force environment camera, 720p works best for focus on iOS
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: false,
-      video: {
-        facingMode: { exact: 'environment' },
-        width:  { ideal: 1280 },
-        height: { ideal: 720 },
-      }
-    }).catch(() => navigator.mediaDevices.getUserMedia({
-      audio: false,
-      video: { facingMode: { ideal: 'environment' } }
-    }));
+    // List devices so user can switch
+    const devices = await ZXing.BrowserMultiFormatReader.listVideoInputDevices();
+    const sel = document.getElementById('scanner-camera-select');
+    sel.innerHTML = '';
+    devices.forEach((d, i) => {
+      const opt = document.createElement('option');
+      opt.value = d.deviceId;
+      opt.text = d.label || 'Cámara ' + (i + 1);
+      sel.appendChild(opt);
+    });
 
-    video.srcObject = stream;
-    video.setAttribute('playsinline', '');
-    video.setAttribute('autoplay', '');
-    video.setAttribute('muted', '');
-    await new Promise(r => { video.onloadedmetadata = r; });
-    await video.play().catch(() => {});
-
-    // Try continuous autofocus
-    const track = stream.getVideoTracks()[0];
-    if (track?.applyConstraints) {
-      track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
-    }
+    // Pick back camera
+    const backCam = devices.find(d => /back|rear|trasera|environment/i.test(d.label))
+                 || devices[devices.length - 1];
+    const deviceId = backCam ? backCam.deviceId : undefined;
+    if (deviceId) sel.value = deviceId;
 
     setStatus('Apunta al código de barras...');
 
-    // Choose decoding strategy
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    let active = true;
+    // decodeFromVideoDevice lets ZXing manage the video stream and lens internally
+    await codeReader.decodeFromVideoDevice(deviceId, 'scanner-video', (result, err) => {
+      if (result) onBarcodeDetected(result);
+    });
 
-    // ── Strategy 1: Native BarcodeDetector (Safari 17+, Chrome Android) ──
-    if ('BarcodeDetector' in window) {
-      const detector = new BarcodeDetector({
-        formats: ['ean_13','ean_8','upc_a','upc_e','code_128','code_39','itf','codabar']
-      });
-
-      async function nativeLoop() {
-        if (!active || !video.srcObject) return;
-        if (video.readyState >= 2) {
-          try {
-            const results = await detector.detect(video);
-            if (results.length > 0) {
-              const raw = results[0].rawValue;
-              // Confirmation
-              scanBuffer[raw] = (scanBuffer[raw] || 0) + 1;
-              const c = scanBuffer[raw];
-              setStatus('Leyendo... ' + '●'.repeat(c) + '○'.repeat(Math.max(0, SCAN_CONFIRM-c)));
-              if (c >= SCAN_CONFIRM) {
-                active = false;
-                scanBuffer = {};
-                const code = raw.substring(0, 13);
-                closeScanner();
-                const inp = document.getElementById(scannerTargetId);
-                if (inp) { inp.value = code; inp.focus(); inp.dispatchEvent(new Event('input')); }
-                if (typeof scannerCallback === 'function') scannerCallback(code);
-                showToast('📷 ' + code);
-                return;
-              }
-            }
-          } catch(e) {}
-        }
-        setTimeout(nativeLoop, 150);
-      }
-
-      scannerReader = { _stop: () => { active = false; }, reset: () => { active = false; } };
-      nativeLoop();
-      return;
-    }
-
-    // ── Strategy 2: ZXing canvas loop (fallback) ──
-    const hints = new Map();
-    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, BARCODE_FORMATS);
-    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-    const codeReader = new ZXing.BrowserMultiFormatReader(hints, 200);
-    scannerReader = codeReader;
-    scannerReader._stopDecode = () => { active = false; };
-
-    function zxingLoop() {
-      if (!active || !video.srcObject) return;
-      if (video.readyState >= 2) {
-        canvas.width  = video.videoWidth  || 640;
-        canvas.height = video.videoHeight || 480;
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        try {
-          const result = codeReader.decodeFromCanvas(canvas);
-          if (result) {
-            const raw = result.getText().trim();
-            scanBuffer[raw] = (scanBuffer[raw] || 0) + 1;
-            const c = scanBuffer[raw];
-            setStatus('Leyendo... ' + '●'.repeat(c) + '○'.repeat(Math.max(0, SCAN_CONFIRM-c)));
-            if (c >= SCAN_CONFIRM) {
-              active = false;
-              scanBuffer = {};
-              const code = raw.substring(0, 13);
-              closeScanner();
-              const inp = document.getElementById(scannerTargetId);
-              if (inp) { inp.value = code; inp.focus(); inp.dispatchEvent(new Event('input')); }
-              if (typeof scannerCallback === 'function') scannerCallback(code);
-              showToast('📷 ' + code);
-              return;
-            }
-          }
-        } catch(e) { /* no code */ }
-      }
-      requestAnimationFrame(zxingLoop);
-    }
-    zxingLoop();
-
-  } catch(e) {
-    console.error('Scanner error:', e);
+  } catch (e) {
+    console.error(e);
     setStatus('⚠️ Sin acceso a cámara — escribe el código o usa la foto nativa');
   }
 }
@@ -2860,15 +2759,15 @@ async function startScanner() {
 function switchCamera(deviceId) {
   if (!deviceId) return;
   scanBuffer = {};
+  if (scannerReader) { try { scannerReader.reset(); } catch(e){} scannerReader = null; }
   const video = document.getElementById('scanner-video');
   if (video?.srcObject) { video.srcObject.getTracks().forEach(t => t.stop()); video.srcObject = null; }
-  if (scannerReader) { try { if (scannerReader._stop) scannerReader._stop(); scannerReader.reset(); } catch(e){} scannerReader = null; }
   startScanner();
 }
 
 function closeScanner() {
   scanBuffer = {};
-  if (scannerReader) { try { if (scannerReader._stop) scannerReader._stop(); if (scannerReader._stopDecode) scannerReader._stopDecode(); scannerReader.reset(); } catch(e){} scannerReader = null; }
+  if (scannerReader) { try { scannerReader.reset(); } catch(e){} scannerReader = null; }
   const video = document.getElementById('scanner-video');
   if (video?.srcObject) { video.srcObject.getTracks().forEach(t => t.stop()); video.srcObject = null; }
   closeModal('scanner-modal');
