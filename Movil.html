@@ -916,7 +916,7 @@ body {
       </div>
       <input type="file" id="logo-input" accept="image/*" style="display:none" onchange="handleLogoUpload(this)">
     </div>
-    <div class="nav-section-label">Operaciones</div>
+    <div class="nav-section-label" id="nav-label-ops">Operaciones</div>
     <div class="nav-item active" data-page="pos" onclick="navigate('pos',this)">
       <span class="nav-icon">🛒</span> Punto de Venta
     </div>
@@ -926,7 +926,7 @@ body {
     <div class="nav-item" data-page="consulta" onclick="navigate('consulta',this)">
       <span class="nav-icon">🔍</span> Consulta
     </div>
-    <div class="nav-section-label">Análisis</div>
+    <div class="nav-section-label" id="nav-label-analysis">Análisis</div>
     <div class="nav-item" data-page="sales" onclick="navigate('sales',this)">
       <span class="nav-icon">📋</span> Historial de Ventas
     </div>
@@ -1472,13 +1472,11 @@ function enterApp(user) {
   av.textContent = user.name[0].toUpperCase();
   av.style.background = user.color || 'var(--accent)';
   // Hide admin sections for vendors
-  if (user.role !== 'admin') {
-    document.getElementById('nav-users').style.display = 'none';
-    document.getElementById('admin-nav-label').style.display = 'none';
-  } else {
-    document.getElementById('nav-users').style.display = '';
-    document.getElementById('admin-nav-label').style.display = '';
-  }
+  const isVendor = user.role !== 'admin';
+  const vendorHide = ['nav-users','admin-nav-label','nav-label-analysis'];
+  const vendorHidePage = ['inventory','sales','reports','config'];
+  vendorHide.forEach(id => { const el = document.getElementById(id); if(el) el.style.display = isVendor ? 'none' : ''; });
+  vendorHidePage.forEach(p => { const el = document.querySelector(`[data-page="${p}"]`); if(el) el.style.display = isVendor ? 'none' : ''; });
   navigate('pos', document.querySelector('[data-page="pos"]'));
   assignSKUs();
   renderInventory();
@@ -1578,7 +1576,9 @@ function addToCart(pid) {
     cart.push({ id: pid, name: prod.name, price: prod.price, qty: 1 });
   }
   updateCartBadge();
-  showToast('✅ Agregado al carrito');
+  // Cerrar ventana de búsqueda y abrir carrito
+  closeModal('product-search-modal');
+  openCart();
 }
 
 function updateCartBadge() {
