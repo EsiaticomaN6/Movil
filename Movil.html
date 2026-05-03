@@ -9,7 +9,7 @@
 <title>Farmacia IRE - POS</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
 <style>
 :root {
   --navy: #1a1f3a;
@@ -824,156 +824,46 @@ body {
 }
 .cam-btn:hover { background: var(--surface); }
 
-/* ========== SCANNER MODAL ========== */
-#scanner-modal .modal-box {
-  background: #0e1118;
-  border-radius: 20px;
-  padding: 0;
-  overflow: hidden;
-  max-width: 380px;
-  width: 100%;
-}
-
-.scanner-topbar {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 16px 18px 12px;
-  background: #0e1118;
-}
-
-.scanner-topbar-title {
-  color: #fff;
-  font-size: 15px; font-weight: 700;
-  display: flex; align-items: center; gap: 8px;
-}
-
-.scanner-topbar-close {
-  background: rgba(255,255,255,.12);
-  border: none; border-radius: 50%;
-  width: 30px; height: 30px;
-  color: #fff; font-size: 16px;
-  cursor: pointer; display: flex; align-items: center; justify-content: center;
-}
-
-.scanner-viewport {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 1/1;
-  background: #000;
-  overflow: hidden;
-}
-
-#scanner-video {
-  width: 100%; height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-/* Dark overlay with transparent center window */
-.scanner-overlay {
-  position: absolute; inset: 0;
-  background: rgba(0,0,0,.55);
-  pointer-events: none;
-}
-
-/* Square scanning window */
-.scanner-window {
-  position: absolute;
-  top: 50%; left: 50%;
-  transform: translate(-50%,-50%);
-  width: 72%;
-  aspect-ratio: 1/1;
-  box-shadow: 0 0 0 9999px rgba(0,0,0,.55);
-  border-radius: 4px;
-}
-
-/* Corner brackets */
-.scanner-corner {
-  position: absolute;
-  width: 22px; height: 22px;
-  border-color: #4f6ef7;
-  border-style: solid;
-}
-.scanner-corner.tl { top: 0; left: 0;  border-width: 3px 0 0 3px; border-radius: 4px 0 0 0; }
-.scanner-corner.tr { top: 0; right: 0; border-width: 3px 3px 0 0; border-radius: 0 4px 0 0; }
-.scanner-corner.bl { bottom: 0; left: 0;  border-width: 0 0 3px 3px; border-radius: 0 0 0 4px; }
-.scanner-corner.br { bottom: 0; right: 0; border-width: 0 3px 3px 0; border-radius: 0 0 4px 0; }
-
-/* Animated scan line */
-.scanner-line {
-  position: absolute;
-  left: 6%; right: 6%;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, #4f6ef7, #7c9fff, #4f6ef7, transparent);
-  box-shadow: 0 0 8px 2px rgba(79,110,247,.7);
-  border-radius: 2px;
-  animation: scan-move 2s ease-in-out infinite;
-  top: 10%;
-}
-
-@keyframes scan-move {
-  0%   { top: 8%;  opacity: 1; }
-  50%  { top: 88%; opacity: 1; }
-  100% { top: 8%;  opacity: 1; }
-}
-
-.scanner-status {
-  position: absolute;
-  bottom: 12px; left: 0; right: 0;
-  text-align: center;
-  font-size: 12px; color: rgba(255,255,255,.65);
-  font-family: 'Plus Jakarta Sans', sans-serif;
-}
-
-.scanner-bottom {
-  background: #0e1118;
-  padding: 14px 16px;
-  display: flex; gap: 10px; align-items: center;
-}
-
-.scanner-input-wrap {
-  flex: 1; position: relative;
-}
-
-.scanner-manual-input {
-  width: 100%;
-  background: rgba(255,255,255,.08);
-  border: 1.5px solid rgba(255,255,255,.15);
-  border-radius: 10px;
-  padding: 10px 14px;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 14px;
-  color: #fff;
-  outline: none;
-  transition: border-color .2s;
-}
-
-.scanner-manual-input::placeholder { color: rgba(255,255,255,.35); }
-.scanner-manual-input:focus { border-color: #4f6ef7; }
-
-.scanner-search-btn {
-  background: #4f6ef7;
-  border: none;
-  border-radius: 10px;
-  padding: 10px 18px;
-  color: #fff;
-  font-family: 'Plus Jakarta Sans', sans-serif;
-  font-size: 13px; font-weight: 700;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.scanner-cam-select {
-  background: rgba(255,255,255,.08);
-  border: 1.5px solid rgba(255,255,255,.12);
-  border-radius: 8px;
-  color: rgba(255,255,255,.7);
-  font-size: 11px;
-  padding: 4px 8px;
-  font-family: inherit;
-  cursor: pointer;
-  margin: 0 16px 10px;
-  width: calc(100% - 32px);
-}
+/* ========== SCANNER — copiado del proyecto que funciona ========== */
+#sc-overlay{display:none;position:fixed;inset:0;z-index:9000;
+  background:rgba(0,0,0,.85);align-items:center;justify-content:center;}
+#sc-overlay.open{display:flex;}
+#sc-box{background:#1a1f3c;border-radius:16px;overflow:hidden;
+  width:min(92vw,400px);display:flex;flex-direction:column;
+  box-shadow:0 20px 60px rgba(0,0,0,.5);}
+#sc-head{display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.1);}
+#sc-head span{color:#fff;font-weight:700;font-size:14px;}
+#sc-head button{background:none;border:none;color:#fff;font-size:22px;cursor:pointer;line-height:1;}
+#sc-viewport{position:relative;width:100%;aspect-ratio:1/1;background:#000;overflow:hidden;}
+#sc-viewport video{position:absolute;inset:0;width:100%!important;height:100%!important;object-fit:cover;}
+#sc-viewport canvas{display:none!important;}
+#sc-aim{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  pointer-events:none;z-index:2;}
+#sc-frame{width:75%;max-width:280px;height:180px;position:relative;}
+#sc-frame::before,#sc-frame::after,#sc-frame b::before,#sc-frame b::after{
+  content:'';position:absolute;width:20px;height:20px;border-color:#4f6ef7;border-style:solid;}
+#sc-frame::before{top:0;left:0;border-width:3px 0 0 3px;border-radius:3px 0 0 0;}
+#sc-frame::after{top:0;right:0;border-width:3px 3px 0 0;border-radius:0 3px 0 0;}
+#sc-frame b::before{bottom:0;left:0;border-width:0 0 3px 3px;border-radius:0 0 0 3px;}
+#sc-frame b::after{bottom:0;right:0;border-width:0 3px 3px 0;border-radius:0 0 3px 0;}
+#sc-line{position:absolute;left:4%;right:4%;height:2px;
+  background:linear-gradient(90deg,transparent,#4f6ef7,#7c9fff,transparent);
+  box-shadow:0 0 8px #4f6ef7;animation:sc-sweep 1.8s ease-in-out infinite;}
+@keyframes sc-sweep{0%,100%{top:8%;}50%{top:88%;}}
+#sc-status{padding:10px 16px;color:rgba(255,255,255,.7);font-size:13px;
+  text-align:center;min-height:40px;display:flex;align-items:center;justify-content:center;}
+#sc-manual{display:flex;gap:8px;padding:0 16px 12px;}
+#sc-manual input{flex:1;padding:8px 12px;border-radius:8px;border:1.5px solid rgba(255,255,255,.2);
+  background:rgba(255,255,255,.08);color:#fff;font-size:14px;font-family:inherit;}
+#sc-manual input::placeholder{color:rgba(255,255,255,.3);}
+#sc-manual button{background:#4f6ef7;color:#fff;border:none;padding:8px 16px;
+  border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;}
+#sc-photo-row{padding:0 16px 14px;text-align:center;}
+#sc-photo-row small{display:block;color:rgba(255,255,255,.35);font-size:11px;margin-bottom:6px;}
+#sc-photo-label{display:inline-flex;align-items:center;gap:8px;
+  background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.15);
+  border-radius:10px;padding:9px 16px;cursor:pointer;color:#fff;font-size:13px;font-weight:700;}
 </style>
 </head>
 <body>
@@ -1458,60 +1348,29 @@ body {
   <div class="ctx-item danger" onclick="ctxDelete()">🗑️ Eliminar</div>
 </div>
 
-<!-- Scanner Modal -->
-<div class="modal-overlay" id="scanner-modal" style="background:rgba(0,0,0,.85)">
-  <div class="modal-box" style="padding:0;background:#0e1118;border-radius:20px;overflow:hidden;max-width:380px;width:calc(100% - 32px)">
-
-    <!-- Top bar -->
-    <div class="scanner-topbar">
-      <div class="scanner-topbar-title">
-        <span style="font-size:18px">📷</span> Escanear código de barras
-      </div>
-      <button class="scanner-topbar-close" onclick="closeScanner()">✕</button>
+<!-- Scanner Modal — mismo motor que FarmaciaIRE (Quagga2 + BarcodeDetector) -->
+<div id="sc-overlay">
+  <div id="sc-box">
+    <div id="sc-head">
+      <span>📷 Escanear código de barras</span>
+      <button onclick="scClose()">×</button>
     </div>
-
-    <!-- Viewport -->
-    <div class="scanner-viewport" onclick="tapToFocus(event)">
-      <video id="scanner-video" playsinline autoplay muted></video>
-      <!-- Dark overlay -->
-      <div class="scanner-overlay"></div>
-      <!-- Scan window with corners -->
-      <div class="scanner-window">
-        <div class="scanner-corner tl"></div>
-        <div class="scanner-corner tr"></div>
-        <div class="scanner-corner bl"></div>
-        <div class="scanner-corner br"></div>
-        <!-- Animated scan line -->
-        <div class="scanner-line"></div>
-      </div>
-      <!-- Status text -->
-      <div class="scanner-status" id="scanner-status">Toca aquí para activar la cámara...</div>
+    <div id="sc-viewport">
+      <div id="sc-aim"><div id="sc-frame"><b></b></div><div id="sc-line"></div></div>
     </div>
-
-    <!-- Camera selector -->
-    <select id="scanner-camera-select" class="scanner-cam-select" onchange="switchCamera(this.value)" style="margin-top:10px">
-      <option value="">Cámara trasera</option>
-    </select>
-
-    <!-- Manual input + search -->
-    <div class="scanner-bottom">
-      <div class="scanner-input-wrap">
-        <input class="scanner-manual-input" id="scanner-manual" type="text" inputmode="numeric"
-          maxlength="13" placeholder="O escribe el código..."
-          onkeydown="if(event.key==='Enter')scannerManualSearch()">
-      </div>
-      <button class="scanner-search-btn" onclick="scannerManualSearch()">Buscar</button>
+    <div id="sc-status">Iniciando cámara…</div>
+    <div id="sc-manual">
+      <input id="sc-manual-inp" type="text" inputmode="numeric" maxlength="13"
+        placeholder="O escribe el código…" onkeydown="if(event.key==='Enter')scManual()">
+      <button onclick="scManual()">Buscar</button>
     </div>
-
-    <!-- iOS native capture fallback -->
-    <div style="padding:0 16px 14px;text-align:center">
-      <div style="color:rgba(255,255,255,.35);font-size:11px;margin-bottom:8px">¿No enfoca? Usa la cámara nativa de tu iPhone</div>
-      <label style="display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.1);border:1.5px solid rgba(255,255,255,.2);border-radius:10px;padding:10px 18px;cursor:pointer;color:#fff;font-size:13px;font-weight:700">
+    <div id="sc-photo-row">
+      <small>¿No enfoca? Toma una foto</small>
+      <label id="sc-photo-label">
         📸 Foto con cámara nativa
-        <input type="file" accept="image/*" capture="environment" style="display:none" onchange="scanFromPhoto(this)">
+        <input type="file" accept="image/*" capture="environment" style="display:none" onchange="scFromPhoto(this)">
       </label>
     </div>
-
   </div>
 </div>
 
@@ -2575,218 +2434,257 @@ function loadLogo() {
 }
 
 // ===== BARCODE SCANNER =====
-let scannerReader = null;
-let scannerCallback = null;
-let scannerTargetId = null;
+// ===== SCANNER — motor Quagga2 + BarcodeDetector (mismo que FarmaciaIRE) =====
+(function(){
+'use strict';
 
-function openScanner(inputId, callback) {
-  scannerTargetId = inputId;
-  scannerCallback = callback;
-  document.getElementById('scanner-manual').value = '';
-  setStatus('Iniciando cámara...');
-  openModal('scanner-modal');
-  startScanner();
-}
+var _ctx     = null;
+var _engine  = null;
+var _running = false;
+var _done    = false;
+var _votes   = {};
+var _stream  = null;
+var _natVid  = null;
+var _ticker  = null;
+var VOTES    = 3;
 
-// Decode barcode from a photo taken with the native iOS camera
-function scanFromPhoto(input) {
-  const file = input.files[0];
+// Adaptador: los botones 📷 llaman openScanner(inputId, callback)
+// lo convertimos al sistema scOpen/scClose
+window.openScanner = function(inputId, callback) {
+  window._scInputId  = inputId;
+  window._scCallback = callback;
+  scOpen('generic');
+};
+
+window.scOpen = function(ctx) {
+  _ctx = ctx; _done = false; _votes = {};
+  _cleanViewport();
+  document.getElementById('sc-overlay').classList.add('open');
+  var inp = document.getElementById('sc-manual-inp');
+  if (inp) inp.value = '';
+  _setStatus('Iniciando cámara…');
+  setTimeout(_init, 100);
+};
+
+window.scClose = function() {
+  _stop();
+  document.getElementById('sc-overlay').classList.remove('open');
+};
+
+window.scManual = function() {
+  var code = (document.getElementById('sc-manual-inp').value || '').trim();
+  if (!code) return;
+  _apply(code);
+  scClose();
+};
+
+window.scFromPhoto = function(input) {
+  var file = input.files[0];
   if (!file) return;
-  setStatus('Analizando imagen...');
-
-  const img = new Image();
-  const url = URL.createObjectURL(file);
+  _setStatus('Analizando imagen…');
+  var img = new Image();
+  var url = URL.createObjectURL(file);
   img.onload = function() {
-    const canvas = document.createElement('canvas');
-    // Scale down if too large for faster processing
-    const maxDim = 1200;
-    let w = img.width, h = img.height;
-    if (w > maxDim || h > maxDim) {
-      const ratio = Math.min(maxDim/w, maxDim/h);
-      w = Math.round(w * ratio);
-      h = Math.round(h * ratio);
-    }
-    canvas.width = w;
-    canvas.height = h;
+    var canvas = document.createElement('canvas');
+    var max = 1200;
+    var w = img.width, h = img.height;
+    if (w > max || h > max) { var r = Math.min(max/w,max/h); w=Math.round(w*r); h=Math.round(h*r); }
+    canvas.width = w; canvas.height = h;
     canvas.getContext('2d').drawImage(img, 0, 0, w, h);
     URL.revokeObjectURL(url);
-
-    try {
-      const hints = new Map();
-      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, BARCODE_FORMATS);
-      hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-      const reader = new ZXing.BrowserMultiFormatReader(hints);
-      const result = reader.decodeFromCanvas(canvas);
-      if (result) {
-        const code = result.getText().trim().substring(0, 13);
-        closeScanner();
-        const inp = document.getElementById(scannerTargetId);
-        if (inp) { inp.value = code; inp.focus(); inp.dispatchEvent(new Event('input')); }
-        if (typeof scannerCallback === 'function') scannerCallback(code);
-        showToast('📷 ' + code);
-      } else {
-        setStatus('⚠️ No se encontró código — intenta de nuevo');
-        input.value = '';
-      }
-    } catch(e) {
-      setStatus('⚠️ No se pudo leer — acerca más el código');
-      input.value = '';
-    }
-  };
-  img.onerror = () => { setStatus('⚠️ Error al cargar imagen'); input.value = ''; };
-  img.src = url;
-}
-
-function tapToFocus(e) {
-  const video = document.getElementById('scanner-video');
-  if (!video || !video.srcObject) return;
-  const track = video.srcObject.getVideoTracks()[0];
-  if (!track) return;
-  const caps = track.getCapabilities ? track.getCapabilities() : {};
-  // Show tap indicator
-  const rect = e.currentTarget.getBoundingClientRect();
-  const x = (e.clientX - rect.left) / rect.width;
-  const y = (e.clientY - rect.top) / rect.height;
-  const adv = [{ focusMode: 'manual' }];
-  if (caps.pointOfInterest) adv.push({ pointOfInterest: { x, y } });
-  track.applyConstraints({ advanced: adv })
-    .then(() => {
-      // Switch back to continuous after 1.5s
-      setTimeout(() => {
-        if (caps.focusMode && caps.focusMode.includes('continuous')) {
-          track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(()=>{});
-        }
-      }, 1500);
-    }).catch(() => {});
-  setStatus('🎯 Enfocando...');
-  setTimeout(() => setStatus('Apunta al código de barras...'), 1500);
-}
-
-function setStatus(msg) {
-  const el = document.getElementById('scanner-status');
-  if (el) el.textContent = msg;
-}
-
-function scannerManualSearch() {
-  const val = document.getElementById('scanner-manual').value.trim();
-  if (!val) return;
-  closeScanner();
-  const inp = document.getElementById(scannerTargetId);
-  if (inp) { inp.value = val; inp.focus(); inp.dispatchEvent(new Event('input')); }
-  if (typeof scannerCallback === 'function') scannerCallback(val);
-}
-
-// Formatos de código de barras permitidos (hasta 13 dígitos)
-const BARCODE_FORMATS = [
-  ZXing.BarcodeFormat.EAN_13,
-  ZXing.BarcodeFormat.EAN_8,
-  ZXing.BarcodeFormat.UPC_A,
-  ZXing.BarcodeFormat.UPC_E,
-  ZXing.BarcodeFormat.CODE_128,
-  ZXing.BarcodeFormat.CODE_39,
-  ZXing.BarcodeFormat.ITF,
-];
-
-let scanBuffer = {};
-const SCAN_CONFIRM = 2;
-
-function onBarcodeDetected(result) {
-  if (!result) return;
-  const raw = result.getText().trim();
-  if (!raw || raw.length < 6 || raw.length > 14) return;
-
-  const bfmt = result.getBarcodeFormat ? result.getBarcodeFormat() : null;
-  const numericFmts = [ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8, ZXing.BarcodeFormat.UPC_A, ZXing.BarcodeFormat.UPC_E];
-  if (numericFmts.includes(bfmt) && !/^\d+$/.test(raw)) return;
-
-  scanBuffer[raw] = (scanBuffer[raw] || 0) + 1;
-  const count = scanBuffer[raw];
-  setStatus('Leyendo... ' + '●'.repeat(count) + '○'.repeat(Math.max(0, SCAN_CONFIRM - count)));
-  if (count < SCAN_CONFIRM) return;
-
-  scanBuffer = {};
-  const code = raw.substring(0, 13);
-  closeScanner();
-  const inp = document.getElementById(scannerTargetId);
-  if (inp) { inp.value = code; inp.focus(); inp.dispatchEvent(new Event('input')); }
-  if (typeof scannerCallback === 'function') scannerCallback(code);
-  showToast('📷 ' + code);
-}
-
-async function startScanner() {
-  scanBuffer = {};
-
-  try {
-    setStatus('Solicitando acceso a cámara...');
-
-    // Step 1: Request camera permission explicitly — required for iOS Safari
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' } },
-      audio: false
-    });
-
-    // Step 2: Get the deviceId from the granted stream
-    const track = stream.getVideoTracks()[0];
-    const deviceId = track.getSettings().deviceId;
-
-    // Stop the stream — ZXing will open its own
-    stream.getTracks().forEach(t => t.stop());
-
-    // Step 3: Populate camera selector
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const videoDevices = devices.filter(d => d.kind === 'videoinput');
-    const sel = document.getElementById('scanner-camera-select');
-    sel.innerHTML = '';
-    videoDevices.forEach((d, i) => {
-      const opt = document.createElement('option');
-      opt.value = d.deviceId;
-      opt.text = d.label || 'Cámara ' + (i + 1);
-      sel.appendChild(opt);
-    });
-    if (deviceId) sel.value = deviceId;
-
-    setStatus('Apunta al código de barras...');
-
-    // Step 4: Start ZXing with the confirmed deviceId
-    const hints = new Map();
-    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, BARCODE_FORMATS);
-    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-    const codeReader = new ZXing.BrowserMultiFormatReader(hints, 500);
-    scannerReader = codeReader;
-
-    await codeReader.decodeFromVideoDevice(deviceId, 'scanner-video', (result, err) => {
-      if (result) onBarcodeDetected(result);
-    });
-
-  } catch (e) {
-    console.error('Scanner error:', e);
-    if (e.name === 'NotAllowedError') {
-      setStatus('🚫 Permiso de cámara denegado — actívalo en Ajustes > Safari');
-    } else if (e.name === 'NotFoundError') {
-      setStatus('⚠️ No se encontró cámara en este dispositivo');
+    if (window.BarcodeDetector) {
+      new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128','code_39']})
+        .detect(canvas)
+        .then(function(res) {
+          if (res && res[0]) { _apply(res[0].rawValue); scClose(); }
+          else _setStatus('⚠️ No se detectó código — intenta de nuevo');
+        }).catch(function(){ _setStatus('⚠️ Error al analizar imagen'); });
     } else {
-      setStatus('⚠️ Error de cámara — usa la foto nativa o escribe el código');
+      _setStatus('⚠️ Foto no compatible — escribe el código');
     }
+    input.value = '';
+  };
+  img.src = url;
+};
+
+// Cerrar scanner (llamado desde botones externos que usan el nombre antiguo)
+window.closeScanner = window.scClose;
+
+function _init() {
+  if (window.BarcodeDetector) {
+    BarcodeDetector.getSupportedFormats()
+      .then(function(f){ f.length ? _initNative() : _initQuagga(); })
+      .catch(function(){ _initQuagga(); });
+  } else {
+    _initQuagga();
   }
 }
 
-function switchCamera(deviceId) {
-  if (!deviceId) return;
-  scanBuffer = {};
-  if (scannerReader) { try { scannerReader.reset(); } catch(e){} scannerReader = null; }
-  const video = document.getElementById('scanner-video');
-  if (video?.srcObject) { video.srcObject.getTracks().forEach(t => t.stop()); video.srcObject = null; }
-  startScanner();
+/* ══ MOTOR NATIVO (iOS 17+) ═══════════════════════════ */
+function _initNative() {
+  _engine = 'native';
+  navigator.mediaDevices.getUserMedia({
+    video: { facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720} }
+  })
+  .then(function(stream) {
+    _stream = stream; _running = true;
+    var vp = document.getElementById('sc-viewport');
+    _natVid = document.createElement('video');
+    _natVid.autoplay = true; _natVid.playsInline = true; _natVid.muted = true;
+    _natVid.srcObject = stream;
+    _natVid.style.cssText = 'position:absolute;inset:0;width:100%!important;height:100%!important;object-fit:cover;';
+    vp.insertBefore(_natVid, vp.firstChild);
+    _natVid.play().then(function(){
+      _setStatus('Apunta el código al recuadro…');
+      _nativeLoop(new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128','code_39']}));
+    }).catch(function(){ _initQuagga(); });
+  })
+  .catch(function(e){ _cameraError(e); });
 }
 
-function closeScanner() {
-  scanBuffer = {};
-  if (scannerReader) { try { scannerReader.reset(); } catch(e){} scannerReader = null; }
-  const video = document.getElementById('scanner-video');
-  if (video?.srcObject) { video.srcObject.getTracks().forEach(t => t.stop()); video.srcObject = null; }
-  closeModal('scanner-modal');
+function _nativeLoop(det) {
+  if (!_running || _done) return;
+  det.detect(_natVid || document.createElement('video'))
+    .then(function(res) {
+      if (!_running || _done) return;
+      if (res && res[0]) _vote(res[0].rawValue);
+      _ticker = setTimeout(function(){ _nativeLoop(det); }, 180);
+    })
+    .catch(function(){
+      _ticker = setTimeout(function(){ _nativeLoop(det); }, 180);
+    });
 }
 
+/* ══ MOTOR QUAGGA2 (fallback) ══════════════════════════ */
+function _initQuagga() {
+  if (typeof Quagga === 'undefined') {
+    _setStatus('⚠️ Cámara no disponible — escribe el código manualmente.');
+    return;
+  }
+  _engine = 'quagga';
+  Quagga.init({
+    inputStream: {
+      type: 'LiveStream',
+      target: document.getElementById('sc-viewport'),
+      constraints: {
+        facingMode: { ideal: 'environment' },
+        width:  { ideal: 1280 },
+        height: { ideal: 720 },
+      },
+    },
+    numOfWorkers: 0,
+    frequency: 5,
+    decoder: { readers: ['ean_reader','code_128_reader'], multiple: false },
+    locate: true,
+    locator: { patchSize: 'large', halfSample: false },
+  }, function(err) {
+    if (err) { _cameraError(err); return; }
+    _running = true;
+    Quagga.start();
+    _setStatus('Apunta el código al recuadro…');
+  });
+  Quagga.onDetected(function(r) {
+    if (!_running || _done) return;
+    var code = r && r.codeResult && r.codeResult.code;
+    if (!code || code.length < 6) return;
+    var decoded = (r.codeResult.decodedCodes || []).filter(function(d){ return typeof d.error==='number'; });
+    if (decoded.length) {
+      var avg = decoded.reduce(function(s,d){ return s+d.error; },0)/decoded.length;
+      if (avg > 0.20) return;
+    }
+    _vote(code);
+  });
+}
+
+/* ══ VOTACIÓN ════════════════════════════════════════ */
+function _vote(code) {
+  if (_done) return;
+  Object.keys(_votes).forEach(function(k){ if(k!==code) _votes[k]=0; });
+  _votes[code] = (_votes[code]||0) + 1;
+  _setStatus('Leyendo… (' + _votes[code] + '/' + VOTES + ')');
+  if (_votes[code] >= VOTES) {
+    _done = true;
+    if (navigator.vibrate) navigator.vibrate(80);
+    _stop();
+    scClose();
+    setTimeout(function(){ _apply(code); }, 100);
+  }
+}
+
+/* ══ APLICAR RESULTADO ════════════════════════════════ */
+function _apply(code) {
+  code = String(code).substring(0, 13);
+
+  // Si viene de openScanner(inputId, callback)
+  if (_ctx === 'generic') {
+    var inp = document.getElementById(window._scInputId || '');
+    if (inp) { inp.value = code; inp.focus(); inp.dispatchEvent(new Event('input')); }
+    if (typeof window._scCallback === 'function') window._scCallback(code);
+    showToast('📷 ' + code);
+    return;
+  }
+
+  // Contextos nativos del proyecto
+  if (_ctx === 'pos') {
+    var el = document.getElementById('ps-search');
+    if (el) { el.value = code; el.dispatchEvent(new Event('input')); el.focus(); }
+    var m = document.getElementById('product-search-modal');
+    if (m && !m.classList.contains('active')) openModal('product-search-modal');
+  } else if (_ctx === 'inv') {
+    var el = document.getElementById('inv-search');
+    if (el) { el.value = code; el.dispatchEvent(new Event('input')); el.focus(); }
+  } else if (_ctx === 'consulta') {
+    var el = document.getElementById('consulta-search-input');
+    if (el) { el.value = code; el.dispatchEvent(new Event('input')); el.focus(); }
+  } else if (_ctx === 'barcode') {
+    var el = document.getElementById('pf-barcode');
+    if (el) { el.value = code; el.focus(); }
+  }
+  showToast('📷 ' + code);
+}
+
+/* ══ STOP / CLEANUP ══════════════════════════════════ */
+function _stop() {
+  _running = false;
+  if (_ticker) { clearTimeout(_ticker); _ticker = null; }
+  if (_engine === 'native') {
+    if (_natVid) { _natVid.srcObject = null; }
+    if (_stream) { _stream.getTracks().forEach(function(t){ t.stop(); }); _stream = null; }
+  }
+  if (_engine === 'quagga') {
+    try { Quagga.offDetected(); Quagga.stop(); } catch(e){}
+  }
+  _engine = null;
+}
+
+function _cleanViewport() {
+  var vp = document.getElementById('sc-viewport');
+  if (!vp) return;
+  Array.from(vp.querySelectorAll('video')).forEach(function(v){
+    v.srcObject = null; v.parentNode.removeChild(v);
+  });
+  _natVid = null;
+}
+
+function _setStatus(msg) {
+  var el = document.getElementById('sc-status');
+  if (el) el.textContent = msg;
+}
+
+function _cameraError(err) {
+  var n = err && (err.name || '');
+  var msg = /NotAllowed|Permission|denied/i.test(n)
+    ? '⚠️ Permiso denegado. Ajustes → Safari → Cámara.'
+    : /NotFound/i.test(n)
+      ? '⚠️ No se encontró cámara.'
+      : '⚠️ Error de cámara. Usa entrada manual.';
+  _setStatus(msg);
+}
+
+document.addEventListener('keydown', function(e){ if(e.key==='Escape') scClose(); });
+document.getElementById('sc-overlay').addEventListener('click', function(e){ if(e.target===this) scClose(); });
+
+})();
 
 // ===== iOS KEYBOARD FIX =====
 // Prevents the page from scrolling/shifting when the keyboard appears
