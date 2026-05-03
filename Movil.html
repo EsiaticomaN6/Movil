@@ -1485,7 +1485,7 @@ body {
         <div class="scanner-line"></div>
       </div>
       <!-- Status text -->
-      <div class="scanner-status" id="scanner-status">Iniciando cámara...</div>
+      <div class="scanner-status" id="scanner-status">Toca aquí para activar la cámara...</div>
     </div>
 
     <!-- Camera selector -->
@@ -2716,43 +2716,57 @@ function onBarcodeDetected(result) {
 async function startScanner() {
   scanBuffer = {};
 
-  // Build ZXing reader with hints
-  const hints = new Map();
-  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, BARCODE_FORMATS);
-  hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-  const codeReader = new ZXing.BrowserMultiFormatReader(hints, 500);
-  scannerReader = codeReader;
-
   try {
-    setStatus('Iniciando cámara...');
+    setStatus('Solicitando acceso a cámara...');
 
-    // List devices so user can switch
-    const devices = await ZXing.BrowserMultiFormatReader.listVideoInputDevices();
+    // Step 1: Request camera permission explicitly — required for iOS Safari
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' } },
+      audio: false
+    });
+
+    // Step 2: Get the deviceId from the granted stream
+    const track = stream.getVideoTracks()[0];
+    const deviceId = track.getSettings().deviceId;
+
+    // Stop the stream — ZXing will open its own
+    stream.getTracks().forEach(t => t.stop());
+
+    // Step 3: Populate camera selector
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoDevices = devices.filter(d => d.kind === 'videoinput');
     const sel = document.getElementById('scanner-camera-select');
     sel.innerHTML = '';
-    devices.forEach((d, i) => {
+    videoDevices.forEach((d, i) => {
       const opt = document.createElement('option');
       opt.value = d.deviceId;
       opt.text = d.label || 'Cámara ' + (i + 1);
       sel.appendChild(opt);
     });
-
-    // Pick back camera
-    const backCam = devices.find(d => /back|rear|trasera|environment/i.test(d.label))
-                 || devices[devices.length - 1];
-    const deviceId = backCam ? backCam.deviceId : undefined;
     if (deviceId) sel.value = deviceId;
 
     setStatus('Apunta al código de barras...');
 
-    // decodeFromVideoDevice lets ZXing manage the video stream and lens internally
+    // Step 4: Start ZXing with the confirmed deviceId
+    const hints = new Map();
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, BARCODE_FORMATS);
+    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+    const codeReader = new ZXing.BrowserMultiFormatReader(hints, 500);
+    scannerReader = codeReader;
+
     await codeReader.decodeFromVideoDevice(deviceId, 'scanner-video', (result, err) => {
       if (result) onBarcodeDetected(result);
     });
 
   } catch (e) {
-    console.error(e);
-    setStatus('⚠️ Sin acceso a cámara — escribe el código o usa la foto nativa');
+    console.error('Scanner error:', e);
+    if (e.name === 'NotAllowedError') {
+      setStatus('🚫 Permiso de cámara denegado — actívalo en Ajustes > Safari');
+    } else if (e.name === 'NotFoundError') {
+      setStatus('⚠️ No se encontró cámara en este dispositivo');
+    } else {
+      setStatus('⚠️ Error de cámara — usa la foto nativa o escribe el código');
+    }
   }
 }
 
