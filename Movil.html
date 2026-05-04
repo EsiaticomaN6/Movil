@@ -2452,22 +2452,35 @@ function consultaSearch(q) {
     p.name.toLowerCase().includes(ql) ||
     (p.barcode||'').includes(q) ||
     (p.sku||'').toLowerCase().includes(ql) ||
-    (p.lab||'').toLowerCase().includes(ql)
+    (p.lab||'').toLowerCase().includes(ql) ||
+    (p.desc||'').toLowerCase().includes(ql) ||
+    (p.dept||'').toLowerCase().includes(ql)
   );
   if (!found.length) {
     res.innerHTML = '<div class="empty-state"><p>Sin resultados para "<b>' + q + '</b>"</p></div>';
     return;
   }
+
+  // Si la búsqueda coincide exactamente con un código de barras, mostrar primero ese resultado expandido
+  const exactMatch = found.find(p => (p.barcode||'') === q.trim());
+
   res.innerHTML = found.map(p => {
     const ss = p.stock === 0 ? 'stock-out' : p.stock <= (p.min||0) ? 'stock-low' : 'stock-ok';
     const sv = p.stock === 0 ? 'Sin stock' : p.stock <= (p.min||0) ? 'Stock bajo' : 'OK';
-    return `<div class="sale-card" style="margin-bottom:10px">
+    const isExact = exactMatch && p.id === exactMatch.id;
+
+    return `<div class="sale-card" style="margin-bottom:10px${isExact ? ';border:2px solid var(--accent)' : ''}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
         <div style="flex:1;min-width:0">
           <div style="font-weight:800;font-size:15px;margin-bottom:2px">${p.name}</div>
-          <div style="font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace">${p.barcode||'—'} · ${p.sku||''}</div>
-          <div style="font-size:12px;color:var(--text2);margin-top:3px">${p.lab||''} · ${p.dept||''} · ${p.unit||''}</div>
-          <div style="margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <div style="font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;margin-bottom:3px">${p.barcode||'—'} · ${p.sku||''}</div>
+
+          ${isExact && p.desc ? `<div style="font-size:13px;color:var(--text);background:var(--surface);border-radius:8px;padding:8px 10px;margin-bottom:6px;line-height:1.5">${p.desc}</div>` : ''}
+
+          <div style="font-size:12px;color:var(--text2);margin-bottom:4px">
+            ${[p.lab, p.dept, p.unit].filter(Boolean).join(' · ')}
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
             <span class="stock-badge ${ss}">${p.stock} uds · ${sv}</span>
             ${p.pricewholesale ? `<span style="font-size:11px;color:#7c3aed;font-weight:600">May: ${fmt(p.pricewholesale)}</span>` : ''}
           </div>
