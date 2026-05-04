@@ -1665,8 +1665,10 @@ function navigate(page, el) {
     actionEl.innerHTML = `<button onclick="exportSalesExcel()" style="background:#eef1fe;color:var(--accent);border:2px solid var(--accent);border-radius:10px;padding:6px 10px;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">📊 Exportar</button>`;
   } else if (page === 'reports') {
     actionEl.innerHTML = `<button onclick="exportReportsExcel()" style="background:#eef1fe;color:var(--accent);border:2px solid var(--accent);border-radius:10px;padding:6px 10px;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">📊 Exportar</button>`;
-  } else {
+  } else if (page === 'pos') {
     actionEl.innerHTML = `<button onclick="corteDeCaja()" class="corte-btn" style="padding:6px 10px;font-size:11px">🏧 Corte</button>`;
+  } else {
+    actionEl.innerHTML = '';
   }
   // Update security section with current user name
   if (page === 'config') {
@@ -2777,6 +2779,9 @@ ${methodLines || '  Sin ventas'}
 💰 *TOTAL DEL DÍA: ${fmt(total)}*
 ─────────────────
 👤 Cajero: ${currentUser ? currentUser.name : '—'}`;
+
+  // Confirmation alert
+  alert(`✅ Se ha hecho el corte del día\n\n📋 Ventas: ${todaySales.length}\n💰 Total: ${fmt(total)}\n\nSe enviará el reporte por WhatsApp.`);
 
   // Open WhatsApp with the report
   const url = 'https://wa.me/525527697987?text=' + encodeURIComponent(text);
