@@ -2735,14 +2735,49 @@ function saveConfig() {
 
 // ===== CORTE DE CAJA =====
 function corteDeCaja() {
-  const today = new Date().toDateString();
+  const now   = new Date();
+  const today = now.toDateString();
   const todaySales = sales.filter(s => new Date(s.date).toDateString() === today);
-  const total = todaySales.reduce((a,s)=>a+s.total,0);
+  const total = todaySales.reduce((a,s) => a + s.total, 0);
+
   const byMethod = {};
-  todaySales.forEach(s => { byMethod[s.payment] = (byMethod[s.payment]||0)+s.total; });
-  const methodNames = {cash:'Efectivo', card:'Tarjeta', transfer:'Transferencia'};
-  const lines = Object.entries(byMethod).map(([m,t])=>`${methodNames[m]||m}: ${fmt(t)}`).join('\n');
-  alert(`🏧 CORTE DE CAJA - ${new Date().toLocaleDateString('es-MX')}\n\nVentas: ${todaySales.length}\nTotal: ${fmt(total)}\n\n${lines||'Sin ventas'}`);
+  todaySales.forEach(s => { byMethod[s.payment] = (byMethod[s.payment]||0) + s.total; });
+  const methodNames = { cash:'Efectivo', card:'Tarjeta', transfer:'Transferencia' };
+
+  // Build ticket list (últimas ventas)
+  const ticketLines = todaySales.map(s =>
+    `  ${s.ticketNum}  ${new Date(s.date).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})}  ${fmt(s.total)}`
+  ).join('\n');
+
+  const methodLines = Object.entries(byMethod)
+    .map(([m,t]) => `  ${methodNames[m]||m}: ${fmt(t)}`).join('\n');
+
+  const text =
+`🏧 *CORTE DE CAJA*
+🏥 ${config.name || 'Farmacia IRE'}
+📅 ${now.toLocaleDateString('es-MX', {weekday:'long', year:'numeric', month:'long', day:'numeric'})}
+🕐 ${now.toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit'})}
+─────────────────
+📋 *Ventas del día: ${todaySales.length}*
+${ticketLines || '  Sin ventas registradas'}
+─────────────────
+💳 *Por forma de pago:*
+${methodLines || '  Sin ventas'}
+─────────────────
+💰 *TOTAL DEL DÍA: ${fmt(total)}*
+─────────────────
+👤 Cajero: ${currentUser ? currentUser.name : '—'}`;
+
+  // Open WhatsApp with the report
+  const url = 'https://wa.me/525527697987?text=' + encodeURIComponent(text);
+  // Create a temporary anchor and click it — most reliable on iOS
+  const a = document.createElement('a');
+  a.href = url;
+  a.target = '_blank';
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }
 
 // ===== TOAST =====
