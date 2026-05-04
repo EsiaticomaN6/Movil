@@ -1693,14 +1693,25 @@ function openProductSearch() {
   setTimeout(() => document.getElementById('ps-search').focus(), 200);
 }
 
+// ===== NORMALIZE — quita acentos para búsqueda sin tildes =====
+function nrm(s) {
+  return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+}
+
 function searchProducts(q) {
   const res = document.getElementById('ps-results');
   if (!q.trim()) {
     res.innerHTML = '<div class="empty-state" style="padding:30px"><p>Escribe para buscar</p></div>';
     return;
   }
-  const ql = q.toLowerCase();
-  const found = products.filter(p => p.name.toLowerCase().includes(ql) || (p.barcode||'').includes(q) || (p.lab||'').toLowerCase().includes(ql) || (p.sku||'').toLowerCase().includes(ql));
+  const ql = nrm(q);
+  const found = products.filter(p =>
+    nrm(p.name).includes(ql) ||
+    (p.barcode||'').includes(q) ||
+    nrm(p.lab).includes(ql) ||
+    nrm(p.sku).includes(ql) ||
+    nrm(p.desc).includes(ql)
+  );
   if (!found.length) {
     res.innerHTML = `
       <div style="text-align:center;padding:24px 16px">
@@ -2035,12 +2046,13 @@ function onDeptSelect(val) {
 }
 
 function filterInventory() {
-  const q = document.getElementById('inv-search').value.toLowerCase();
+  const q = document.getElementById('inv-search').value;
   const dept = document.getElementById('inv-dept').value;
   const sf = document.getElementById('inv-stock-filter').value;
+  const ql = nrm(q);
 
   const filtered = products.filter(p => {
-    const mq = !q || p.name.toLowerCase().includes(q) || (p.barcode||'').includes(q) || (p.lab||'').toLowerCase().includes(q) || (p.sku||'').toLowerCase().includes(q);
+    const mq = !q || nrm(p.name).includes(ql) || (p.barcode||'').includes(q) || nrm(p.lab).includes(ql) || nrm(p.sku).includes(ql) || nrm(p.desc).includes(ql);
     const md = !dept || p.dept === dept;
     let ms = true;
     if (sf === 'ok') ms = p.stock > (p.min||0);
@@ -2447,14 +2459,14 @@ function consultaSearch(q) {
     res.innerHTML = '<div class="empty-state"><div class="empty-icon">🔎</div><p>Escribe para buscar un producto</p></div>';
     return;
   }
-  const ql = q.toLowerCase();
+  const ql = nrm(q);
   const found = products.filter(p =>
-    p.name.toLowerCase().includes(ql) ||
+    nrm(p.name).includes(ql) ||
     (p.barcode||'').includes(q) ||
-    (p.sku||'').toLowerCase().includes(ql) ||
-    (p.lab||'').toLowerCase().includes(ql) ||
-    (p.desc||'').toLowerCase().includes(ql) ||
-    (p.dept||'').toLowerCase().includes(ql)
+    nrm(p.sku).includes(ql) ||
+    nrm(p.lab).includes(ql) ||
+    nrm(p.desc).includes(ql) ||
+    nrm(p.dept).includes(ql)
   );
   if (!found.length) {
     res.innerHTML = '<div class="empty-state"><p>Sin resultados para "<b>' + q + '</b>"</p></div>';
