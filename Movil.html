@@ -2872,6 +2872,7 @@ function corteDeCaja() {
   document.getElementById('corte-fecha').textContent =
     now.toLocaleDateString('es-MX', {weekday:'long', year:'numeric', month:'long', day:'numeric'}) +
     ' · ' + now.toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit'});
+  // Always show confirmation step first
   document.getElementById('corte-step1').style.display = 'block';
   document.getElementById('corte-step2').style.display = 'none';
   openModal('corte-modal');
