@@ -1462,6 +1462,7 @@ body {
     <div style="margin-top:14px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;padding:14px">
       <div style="font-size:13px;font-weight:700;color:#15803d;margin-bottom:10px">📲 Enviar por WhatsApp</div>
       <a id="wa-link" href="#" target="_blank" rel="noopener"
+        onclick="setTimeout(function(){closeModal('ticket-modal');closeModal('cart-modal');},300)"
         style="width:100%;background:#25d366;color:#fff;border-radius:10px;
                padding:12px;font-family:inherit;font-size:14px;font-weight:700;
                display:flex;align-items:center;justify-content:center;gap:8px;
