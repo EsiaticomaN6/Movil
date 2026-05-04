@@ -983,7 +983,7 @@ body {
             <span style="font-size:9px;color:var(--text3);line-height:1" id="topbar-role">Administrador</span>
           </div>
         </div>
-        <button class="corte-btn" onclick="corteDeCaja()" style="padding:6px 10px;font-size:11px">🏧 Corte</button>
+        <div id="topbar-action"></div>
       </div>
     </div>
 
@@ -1658,6 +1658,16 @@ function navigate(page, el) {
   document.getElementById('page-' + page).classList.add('active');
   const titles = { pos:'Punto de Venta', inventory:'Inventario', consulta:'Consulta', sales:'Historial de Ventas', reports:'Reportes', users:'Usuarios', config:'Configuración' };
   document.getElementById('topbar-title').textContent = titles[page] || page;
+
+  // Contextual topbar action button
+  const actionEl = document.getElementById('topbar-action');
+  if (page === 'sales') {
+    actionEl.innerHTML = `<button onclick="exportSalesExcel()" style="background:#eef1fe;color:var(--accent);border:2px solid var(--accent);border-radius:10px;padding:6px 10px;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">📊 Exportar</button>`;
+  } else if (page === 'reports') {
+    actionEl.innerHTML = `<button onclick="exportReportsExcel()" style="background:#eef1fe;color:var(--accent);border:2px solid var(--accent);border-radius:10px;padding:6px 10px;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">📊 Exportar</button>`;
+  } else {
+    actionEl.innerHTML = `<button onclick="corteDeCaja()" class="corte-btn" style="padding:6px 10px;font-size:11px">🏧 Corte</button>`;
+  }
   // Update security section with current user name
   if (page === 'config') {
     const el = document.getElementById('cfg-current-user-name');
@@ -2778,6 +2788,77 @@ ${methodLines || '  Sin ventas'}
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
+}
+
+function exportSalesExcel() {
+  if (!sales.length) { showToast('⚠️ No hay ventas para exportar'); return; }
+  const methodNames = { cash:'Efectivo', card:'Tarjeta', transfer:'Transferencia' };
+  const rows = [];
+  sales.forEach(s => {
+    s.items.forEach((item, i) => {
+      rows.push({
+        'Ticket':       s.ticketNum,
+        'Fecha':        new Date(s.date).toLocaleDateString('es-MX'),
+        'Hora':         new Date(s.date).toLocaleTimeString('es-MX'),
+        'Cajero':       s.user,
+        'Producto':     item.name,
+        'Cantidad':     item.qty,
+        'Precio Unit.': item.price,
+        'Subtotal':     item.price * item.qty,
+        'Descuento':    i === 0 ? (s.discount||0) : 0,
+        'IVA':          i === 0 ? (s.iva||0) : 0,
+        'Total':        i === 0 ? s.total : '',
+        'Forma Pago':   i === 0 ? (methodNames[s.payment]||s.payment) : '',
+      });
+    });
+  });
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [10,12,10,14,30,8,12,12,10,10,12,12].map(w=>({wch:w}));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Historial de Ventas');
+  XLSX.writeFile(wb, 'historial_ventas.xlsx');
+  showToast('📊 Historial exportado');
+}
+
+function exportReportsExcel() {
+  if (!sales.length) { showToast('⚠️ No hay datos para exportar'); return; }
+  const methodNames = { cash:'Efectivo', card:'Tarjeta', transfer:'Transferencia' };
+
+  // Daily summary
+  const byDay = {};
+  sales.forEach(s => {
+    const day = new Date(s.date).toLocaleDateString('es-MX');
+    if (!byDay[day]) byDay[day] = { ventas: 0, total: 0, cash: 0, card: 0, transfer: 0 };
+    byDay[day].ventas++;
+    byDay[day].total += s.total;
+    byDay[day][s.payment] = (byDay[day][s.payment]||0) + s.total;
+  });
+
+  const rows = Object.entries(byDay).map(([day, d]) => ({
+    'Fecha':        day,
+    'Num. Ventas':  d.ventas,
+    'Total del día':d.total,
+    'Efectivo':     d.cash||0,
+    'Tarjeta':      d.card||0,
+    'Transferencia':d.transfer||0,
+  }));
+
+  // Totals row
+  rows.push({
+    'Fecha': 'TOTAL',
+    'Num. Ventas':  sales.length,
+    'Total del día': sales.reduce((a,s)=>a+s.total,0),
+    'Efectivo':     sales.filter(s=>s.payment==='cash').reduce((a,s)=>a+s.total,0),
+    'Tarjeta':      sales.filter(s=>s.payment==='card').reduce((a,s)=>a+s.total,0),
+    'Transferencia':sales.filter(s=>s.payment==='transfer').reduce((a,s)=>a+s.total,0),
+  });
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [14,12,14,12,12,14].map(w=>({wch:w}));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Reportes');
+  XLSX.writeFile(wb, 'reporte_ventas.xlsx');
+  showToast('📊 Reporte exportado');
 }
 
 // ===== TOAST =====
