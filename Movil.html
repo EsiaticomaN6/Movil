@@ -1506,6 +1506,29 @@ body {
   </div>
 </div>
 
+<!-- ===== CORTE MODAL ===== -->
+<div class="modal-overlay" id="corte-modal" style="z-index:1100">
+  <div style="background:#fff;border-radius:28px;padding:28px 24px;width:calc(100% - 40px);max-width:360px;animation:fadeUp .25s ease both;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+    <div style="text-align:center;margin-bottom:18px">
+      <div style="font-size:44px;margin-bottom:6px">🏧</div>
+      <div style="font-size:19px;font-weight:800;color:#1e2340">Corte de Caja</div>
+      <div id="corte-fecha" style="font-size:12px;color:#6b7280;margin-top:4px"></div>
+    </div>
+    <div id="corte-resumen" style="background:#f4f5f9;border-radius:14px;padding:14px;margin-bottom:20px"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="closeModal('corte-modal')"
+        style="flex:1;background:#f4f5f9;color:#6b7280;border:none;border-radius:50px;padding:14px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer">
+        Cancelar
+      </button>
+      <button onclick="enviarCorteWA()"
+        style="flex:1;background:#25d366;color:#fff;border:none;border-radius:50px;padding:14px;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+        Enviar por WA
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== CONFIRM COBRO MODAL ===== -->
 <div class="modal-overlay" id="confirm-cobro-modal" style="z-index:1100">
   <div class="modal-box" style="max-width:360px;width:100%;animation:fadeUp .25s ease both">
@@ -2029,6 +2052,7 @@ function sendTicketWhatsApp() {
   const link = document.getElementById('wa-link');
   if (link && link.href && link.href !== '#') {
     closeModal('ticket-modal');
+    closeModal('cart-modal');
     window.location.href = link.href;
   }
 }
@@ -2037,6 +2061,7 @@ function openWhatsApp() {
   const link = document.getElementById('wa-link');
   if (link && link.href && link.href !== '#') {
     closeModal('ticket-modal');
+    closeModal('cart-modal');
     window.location.href = link.href;
   }
   return false;
@@ -2809,6 +2834,8 @@ function saveConfig() {
 }
 
 // ===== CORTE DE CAJA =====
+let _corteWAUrl = '';
+
 function corteDeCaja() {
   const now   = new Date();
   const today = now.toDateString();
@@ -2817,19 +2844,38 @@ function corteDeCaja() {
 
   const byMethod = {};
   todaySales.forEach(s => { byMethod[s.payment] = (byMethod[s.payment]||0) + s.total; });
-  const methodNames = { cash:'Efectivo', card:'Tarjeta', transfer:'Transferencia' };
+  const methodNames = { cash:'💵 Efectivo', card:'💳 Tarjeta', transfer:'🏦 Transferencia' };
 
-  // Build ticket list (últimas ventas)
+  // Update modal content
+  document.getElementById('corte-fecha').textContent =
+    now.toLocaleDateString('es-MX', {weekday:'long', year:'numeric', month:'long', day:'numeric'}) +
+    ' · ' + now.toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit'});
+
+  const methodRows = Object.entries(byMethod)
+    .map(([m,t]) => `<div style="display:flex;justify-content:space-between;font-size:13px;color:#6b7280;margin-bottom:4px"><span>${methodNames[m]||m}</span><span style="font-weight:700">${fmt(t)}</span></div>`)
+    .join('');
+
+  document.getElementById('corte-resumen').innerHTML = `
+    <div style="display:flex;justify-content:space-between;margin-bottom:10px">
+      <span style="font-size:13px;color:#6b7280">Ventas del día</span>
+      <span style="font-weight:800;color:#1e2340;font-size:15px">${todaySales.length}</span>
+    </div>
+    ${methodRows}
+    <div style="display:flex;justify-content:space-between;border-top:2px solid #e5e7eb;margin-top:10px;padding-top:10px">
+      <span style="font-size:16px;font-weight:800;color:#1e2340">TOTAL</span>
+      <span style="font-size:20px;font-weight:800;color:#4f6ef7">${fmt(total)}</span>
+    </div>`;
+
+  // Build WhatsApp text
   const ticketLines = todaySales.map(s =>
     `  ${s.ticketNum}  ${new Date(s.date).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})}  ${fmt(s.total)}`
   ).join('\n');
-
-  const methodLines = Object.entries(byMethod)
+  const methodLinesWA = Object.entries(byMethod)
     .map(([m,t]) => `  ${methodNames[m]||m}: ${fmt(t)}`).join('\n');
 
   const text =
 `🏧 *CORTE DE CAJA*
-🏥 ${config.name || 'Farmacia IRE'}
+🏥 ${config.name || 'Farmacia Iré'}
 📅 ${now.toLocaleDateString('es-MX', {weekday:'long', year:'numeric', month:'long', day:'numeric'})}
 🕐 ${now.toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit'})}
 ─────────────────
@@ -2837,20 +2883,20 @@ function corteDeCaja() {
 ${ticketLines || '  Sin ventas registradas'}
 ─────────────────
 💳 *Por forma de pago:*
-${methodLines || '  Sin ventas'}
+${methodLinesWA || '  Sin ventas'}
 ─────────────────
 💰 *TOTAL DEL DÍA: ${fmt(total)}*
 ─────────────────
 👤 Cajero: ${currentUser ? currentUser.name : '—'}`;
 
-  // Confirmation alert
-  alert(`✅ Se ha hecho el corte del día\n\n📋 Ventas: ${todaySales.length}\n💰 Total: ${fmt(total)}\n\nSe enviará el reporte por WhatsApp.`);
+  _corteWAUrl = 'https://wa.me/525527697987?text=' + encodeURIComponent(text);
+  openModal('corte-modal');
+}
 
-  // Open WhatsApp with the report
-  const url = 'https://wa.me/525527697987?text=' + encodeURIComponent(text);
-  // Create a temporary anchor and click it — most reliable on iOS
+function enviarCorteWA() {
+  closeModal('corte-modal');
   const a = document.createElement('a');
-  a.href = url;
+  a.href = _corteWAUrl;
   a.target = '_blank';
   a.rel = 'noopener';
   document.body.appendChild(a);
