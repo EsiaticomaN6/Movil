@@ -1252,8 +1252,10 @@ body {
 
 <!-- ===== CART MODAL ===== -->
 <div class="modal-overlay" id="cart-modal">
-  <div class="modal-box" style="max-width:460px;width:100%;max-height:90vh;overflow-y:auto">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+  <div class="modal-box" style="max-width:460px;width:100%;max-height:92vh;display:flex;flex-direction:column;overflow:hidden">
+
+    <!-- Header fijo -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-shrink:0">
       <div class="modal-title" style="margin:0">🛒 Ticket de Venta</div>
       <div style="display:flex;gap:8px">
         <button onclick="clearCart()" style="background:#fff0f0;border:none;border-radius:8px;padding:6px 12px;font-family:inherit;font-size:12px;font-weight:700;color:var(--red);cursor:pointer">Vaciar</button>
@@ -1261,11 +1263,13 @@ body {
       </div>
     </div>
 
-    <div id="cart-items-list">
+    <!-- Lista de productos — scroll solo aquí -->
+    <div id="cart-items-list" style="overflow-y:auto;flex:1;min-height:60px">
       <div class="empty-state" style="padding:30px"><p>El carrito está vacío</p></div>
     </div>
 
-    <div class="cart-totals" id="cart-totals-section" style="display:none">
+    <!-- Totales y cobro — fijos abajo -->
+    <div class="cart-totals" id="cart-totals-section" style="display:none;flex-shrink:0;border-top:1px solid var(--border);padding-top:12px;margin-top:8px">
       <div class="discount-row">
         <label>Descuento</label>
         <input class="input-field" id="cart-discount" type="number" min="0" max="100" value="0" oninput="updateCartTotals()" style="width:70px;text-align:right">
@@ -1281,7 +1285,7 @@ body {
       <div class="cart-total-row"><span id="ct-iva-label">IVA (0%)</span><span id="ct-iva">$0.00</span></div>
       <div class="cart-total-row grand"><span>TOTAL</span><span id="ct-total">$0.00</span></div>
 
-      <div style="margin-top:14px">
+      <div style="margin-top:12px">
         <div style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Forma de pago</div>
         <div class="payment-methods">
           <button class="pay-btn active" id="pay-cash" onclick="selectPayment('cash')">💵 Efectivo</button>
@@ -1296,7 +1300,6 @@ body {
             <div class="change-amount" id="change-amount">$0.00</div>
           </div>
         </div>
-
       </div>
 
       <button class="cobrar-btn" id="cobrar-btn" onclick="processSale()">✅ Cobrar</button>
@@ -1499,6 +1502,22 @@ body {
     <div class="btn-row" style="margin-top:20px">
       <button class="btn btn-secondary" onclick="closeModal('manual-product-modal')">Cancelar</button>
       <button class="btn btn-primary" onclick="addManualProduct()">➕ Agregar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== CONFIRM COBRO MODAL ===== -->
+<div class="modal-overlay" id="confirm-cobro-modal" style="z-index:1100">
+  <div class="modal-box" style="max-width:360px;width:100%;animation:fadeUp .25s ease both">
+    <div style="text-align:center;margin-bottom:20px">
+      <div style="font-size:48px;margin-bottom:8px">💳</div>
+      <div style="font-size:18px;font-weight:800;color:var(--text)">Confirmar cobro</div>
+    </div>
+    <div id="confirm-cobro-items" style="background:var(--surface);border-radius:12px;padding:12px;margin-bottom:14px;max-height:180px;overflow-y:auto"></div>
+    <div id="confirm-cobro-summary" style="margin-bottom:18px"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="closeModal('confirm-cobro-modal')" class="btn btn-secondary" style="flex:1">Cancelar</button>
+      <button onclick="confirmedSale()" style="flex:1;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:13px;font-family:inherit;font-size:15px;font-weight:800;cursor:pointer">✅ Cobrar</button>
     </div>
   </div>
 </div>
@@ -1887,16 +1906,47 @@ function processSale() {
     showToast('⚠️ Monto recibido insuficiente'); return;
   }
 
-  // Confirmation before charging
-  const methodNames = { cash:'Efectivo', card:'Tarjeta', transfer:'Transferencia' };
-  const itemsList = cart.map(i => `  • ${i.name} x${i.qty}  $${(i.price*i.qty).toFixed(2)}`).join('\n');
-  const confirmed = confirm(
-    `¿Confirmar cobro?\n\n${itemsList}\n\n` +
-    `Total: $${total.toFixed(2)}\n` +
-    `Pago: ${methodNames[selectedPayment]||selectedPayment}` +
-    (selectedPayment === 'cash' && recv > 0 ? `\nCambio: $${Math.max(0, recv-total).toFixed(2)}` : '')
-  );
-  if (!confirmed) return;
+  const methodNames = { cash:'💵 Efectivo', card:'💳 Tarjeta', transfer:'🏦 Transferencia' };
+
+  // Build items list for confirm modal
+  const itemsHTML = cart.map(i => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
+      <div style="font-size:13px;font-weight:600;color:var(--text);flex:1">${i.name} <span style="color:var(--text3)">×${i.qty}</span></div>
+      <div style="font-size:13px;font-weight:800;color:var(--accent)">${fmt(i.price*i.qty)}</div>
+    </div>`).join('');
+
+  const summaryHTML = `
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${discPct > 0 ? `<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text2)"><span>Descuento (${discPct}%)</span><span>-${fmt(disc)}</span></div>` : ''}
+      ${ivaPct  > 0 ? `<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text2)"><span>IVA (${ivaPct}%)</span><span>${fmt(iva)}</span></div>` : ''}
+      <div style="display:flex;justify-content:space-between;font-size:20px;font-weight:800;color:var(--accent);padding-top:6px;border-top:2px solid var(--border)">
+        <span>TOTAL</span><span>${fmt(total)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text2)">
+        <span>Pago</span><span style="font-weight:700">${methodNames[selectedPayment]||selectedPayment}</span>
+      </div>
+      ${selectedPayment === 'cash' && recv > 0 ? `
+      <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:700;color:var(--green)">
+        <span>Cambio</span><span>${fmt(Math.max(0, recv-total))}</span>
+      </div>` : ''}
+    </div>`;
+
+  document.getElementById('confirm-cobro-items').innerHTML = itemsHTML;
+  document.getElementById('confirm-cobro-summary').innerHTML = summaryHTML;
+  openModal('confirm-cobro-modal');
+}
+
+function confirmedSale() {
+  closeModal('confirm-cobro-modal');
+
+  const sub = cart.reduce((a,c) => a + c.price*c.qty, 0);
+  const discPct = parseFloat(document.getElementById('cart-discount').value)||0;
+  const ivaPct  = parseFloat(document.getElementById('cart-iva').value)||0;
+  const disc = sub * discPct / 100;
+  const afterDisc = sub - disc;
+  const iva = afterDisc * ivaPct / 100;
+  const total = afterDisc + iva;
+  const recv = parseFloat(document.getElementById('cart-received').value)||0;
 
   // Discount stock
   cart.forEach(item => {
