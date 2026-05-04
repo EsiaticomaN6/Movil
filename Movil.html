@@ -1887,6 +1887,17 @@ function processSale() {
     showToast('⚠️ Monto recibido insuficiente'); return;
   }
 
+  // Confirmation before charging
+  const methodNames = { cash:'Efectivo', card:'Tarjeta', transfer:'Transferencia' };
+  const itemsList = cart.map(i => `  • ${i.name} x${i.qty}  $${(i.price*i.qty).toFixed(2)}`).join('\n');
+  const confirmed = confirm(
+    `¿Confirmar cobro?\n\n${itemsList}\n\n` +
+    `Total: $${total.toFixed(2)}\n` +
+    `Pago: ${methodNames[selectedPayment]||selectedPayment}` +
+    (selectedPayment === 'cash' && recv > 0 ? `\nCambio: $${Math.max(0, recv-total).toFixed(2)}` : '')
+  );
+  if (!confirmed) return;
+
   // Discount stock
   cart.forEach(item => {
     const prod = products.find(p => p.id === item.id);
@@ -1967,6 +1978,7 @@ function showTicketModal(sale) {
 function sendTicketWhatsApp() {
   const link = document.getElementById('wa-link');
   if (link && link.href && link.href !== '#') {
+    closeModal('ticket-modal');
     window.location.href = link.href;
   }
 }
@@ -1974,6 +1986,7 @@ function sendTicketWhatsApp() {
 function openWhatsApp() {
   const link = document.getElementById('wa-link');
   if (link && link.href && link.href !== '#') {
+    closeModal('ticket-modal');
     window.location.href = link.href;
   }
   return false;
