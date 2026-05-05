@@ -1837,8 +1837,7 @@ function navigate(page, el) {
   } else if (page === 'pos') {
     actionEl.innerHTML = `<button onclick="corteDeCaja()" class="corte-btn" style="padding:6px 10px;font-size:11px">🏧 Corte</button>`;
   } else if (page === 'inventory') {
-    const icon = (typeof driveSync !== 'undefined') ? driveSync.getIcon() : '☁️';
-    actionEl.innerHTML = `<button onclick="driveSync.openPanel()" title="Sincronización Google Drive" style="background:none;border:none;cursor:pointer;padding:4px;border-radius:10px;display:flex;align-items:center;font-size:22px"><span id="drive-sync-icon">${icon}</span></button>`;
+    actionEl.innerHTML = `<button onclick="driveSync.openPanel()" title="Sincronización Google Drive" style="background:none;border:none;cursor:pointer;padding:4px;border-radius:10px;display:flex;align-items:center;font-size:22px"><span id="drive-sync-icon">${driveSync.getIcon()}</span></button>`;
   } else {
     actionEl.innerHTML = '';
   }
@@ -3501,12 +3500,11 @@ const driveSync = (() => {
     fnSec.style.display         = connected ? 'none' : 'block';
     lastSync.style.display      = connected ? 'block' : 'none';
     autoRow.style.display       = connected ? 'flex' : 'none';
-    if (syncIcon) syncIcon.textContent = connected ? '🟢' : '☁️';
+    syncIcon.textContent        = connected ? '🟢' : '☁️';
   }
 
   function _setSyncing(active) {
-    const el = document.getElementById('drive-sync-icon');
-    if (el) el.textContent = active ? '🔄' : (_token ? '🟢' : '☁️');
+    document.getElementById('drive-sync-icon').textContent = active ? '🔄' : (_token ? '🟢' : '☁️');
   }
 
   // ── OAuth token via GIS ──
@@ -3721,6 +3719,10 @@ const driveSync = (() => {
   // Init on load
   function init() {
     _loadCfg();
+    // If we have a clientId saved, show indicator
+    if (_cfg.clientId) {
+      document.getElementById('drive-sync-icon').textContent = '☁️';
+    }
   }
 
   function getIcon() {
@@ -3772,32 +3774,13 @@ driveSync.init();
 // ===== SERVICE WORKER (offline + installable) =====
 if ('serviceWorker' in navigator) {
   const swCode = `
-    const CACHE = 'farmacia-ire-v${Date.now()}';
-    self.addEventListener('install', e => {
-      self.skipWaiting();
-    });
-    self.addEventListener('activate', e => {
-      e.waitUntil(
-        caches.keys().then(keys =>
-          Promise.all(keys.map(k => caches.delete(k)))
-        ).then(() => clients.claim())
-      );
-    });
-    self.addEventListener('fetch', e => {
-      // Always try network first, only fall back to cache for same-origin HTML
-      e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
-    });
+    self.addEventListener('install', e => { self.skipWaiting(); });
+    self.addEventListener('activate', e => { e.waitUntil(clients.claim()); });
+    self.addEventListener('fetch', e => { e.respondWith(fetch(e.request).catch(() => caches.match(e.request))); });
   `;
   const blob = new Blob([swCode], {type: 'application/javascript'});
   const swUrl = URL.createObjectURL(blob);
-  // Unregister old service workers first, then register new one
-  navigator.serviceWorker.getRegistrations().then(regs => {
-    Promise.all(regs.map(r => r.unregister())).then(() => {
-      navigator.serviceWorker.register(swUrl).catch(() => {});
-    });
-  }).catch(() => {
-    navigator.serviceWorker.register(swUrl).catch(() => {});
-  });
+  navigator.serviceWorker.register(swUrl).catch(() => {});
 }
 </script>
 </body>
