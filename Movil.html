@@ -3615,12 +3615,12 @@ const driveSync = (() => {
     save('users', users);
     save('config', config);
     // Refresh UI
-    if (typeof renderInventory  === 'function') renderInventory();
-    if (typeof renderSalesHistory=== 'function') renderSalesHistory();
-    if (typeof renderPOSProducts === 'function') renderPOSProducts();
+    if (typeof renderInventory   === 'function') renderInventory();
+    if (typeof renderTodaySales  === 'function') renderTodaySales();
+    if (typeof renderSales       === 'function') renderSales();
     if (typeof renderReports     === 'function') renderReports();
-    if (typeof renderUserGrid    === 'function') renderUserGrid();
-    updatePOSToday();
+    if (typeof renderUsers       === 'function') renderUsers();
+    if (typeof renderUserList    === 'function') renderUserList();
   }
 
   // ── Public API ──
