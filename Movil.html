@@ -985,13 +985,6 @@ body {
           </div>
         </div>
         <div id="topbar-action"></div>
-        <!-- Drive Sync Button -->
-        <button id="drive-sync-btn" onclick="driveSync.openPanel()" title="Sincronización Google Drive"
-          style="background:none;border:none;cursor:pointer;padding:6px;border-radius:10px;display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:var(--text2);transition:background .15s"
-          onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background='none'">
-          <span id="drive-sync-icon" style="font-size:18px">☁️</span>
-          <span id="drive-sync-label" style="display:none">Sin conectar</span>
-        </button>
       </div>
     </div>
 
@@ -1843,6 +1836,8 @@ function navigate(page, el) {
     actionEl.innerHTML = `<button onclick="exportReportsExcel()" style="background:#eef1fe;color:var(--accent);border:2px solid var(--accent);border-radius:10px;padding:6px 10px;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">📊 Exportar</button>`;
   } else if (page === 'pos') {
     actionEl.innerHTML = `<button onclick="corteDeCaja()" class="corte-btn" style="padding:6px 10px;font-size:11px">🏧 Corte</button>`;
+  } else if (page === 'inventory') {
+    actionEl.innerHTML = `<button onclick="driveSync.openPanel()" title="Sincronización Google Drive" style="background:none;border:none;cursor:pointer;padding:4px;border-radius:10px;display:flex;align-items:center;font-size:22px"><span id="drive-sync-icon">${driveSync.getIcon()}</span></button>`;
   } else {
     actionEl.innerHTML = '';
   }
@@ -3584,41 +3579,22 @@ const driveSync = (() => {
     }
   }
 
-  // ── Build DB snapshot ──
+  // ── Build DB snapshot (products only) ──
   function _buildSnapshot() {
     return {
       _version: 2,
       _savedAt: new Date().toISOString(),
       _device: navigator.userAgent.substring(0, 40),
-      products,
-      sales,
-      users,
-      config
+      products
     };
   }
 
-  // ── Apply snapshot to app ──
+  // ── Apply snapshot to app (products only) ──
   function _applySnapshot(snap) {
     if (!snap || !snap._version) throw new Error('Archivo inválido o corrupto');
     products = snap.products || products;
-    sales    = snap.sales    || sales;
-    // Don't overwrite users if empty in snapshot
-    if (snap.users && snap.users.length > 0) users = snap.users;
-    if (snap.config) {
-      config = { ...config, ...snap.config };
-      loadConfig();
-    }
     save('products', products);
-    save('sales', sales);
-    save('users', users);
-    save('config', config);
-    // Refresh UI
-    if (typeof renderInventory   === 'function') renderInventory();
-    if (typeof renderTodaySales  === 'function') renderTodaySales();
-    if (typeof renderSales       === 'function') renderSales();
-    if (typeof renderReports     === 'function') renderReports();
-    if (typeof renderUsers       === 'function') renderUsers();
-    if (typeof renderUserList    === 'function') renderUserList();
+    if (typeof renderInventory === 'function') renderInventory();
   }
 
   // ── Public API ──
@@ -3749,7 +3725,11 @@ const driveSync = (() => {
     }
   }
 
-  return { openPanel, closePanel, connect, pullFromDrive, pushToDrive, toggleAutoSync, disconnect, autoSync, init };
+  function getIcon() {
+    return _token ? '🟢' : '☁️';
+  }
+
+  return { openPanel, closePanel, connect, pullFromDrive, pushToDrive, toggleAutoSync, disconnect, autoSync, init, getIcon };
 })();
 
 // ===== END GOOGLE DRIVE SYNC MODULE =====
@@ -3758,7 +3738,7 @@ const driveSync = (() => {
 const _origSave = save;
 window.save = function(key, val) {
   _origSave(key, val);
-  if (key === 'products' || key === 'sales') {
+  if (key === 'products') {
     driveSync.autoSync();
   }
 };
