@@ -3506,8 +3506,6 @@ const driveSync = (() => {
     lastSync.style.display      = connected ? 'block' : 'none';
     autoRow.style.display       = connected ? 'flex' : 'none';
     syncIcon.textContent        = connected ? '🟢' : '☁️';
-    syncLabel.style.display     = connected ? 'block' : 'none';
-    syncLabel.textContent       = connected ? 'Drive ON' : 'Sin conectar';
   }
 
   function _setSyncing(active) {
@@ -3747,8 +3745,7 @@ const driveSync = (() => {
     _loadCfg();
     // If we have a clientId saved, show indicator
     if (_cfg.clientId) {
-      document.getElementById('drive-sync-label').style.display = 'block';
-      document.getElementById('drive-sync-label').textContent = 'Drive OFF';
+      document.getElementById('drive-sync-icon').textContent = '☁️';
     }
   }
 
