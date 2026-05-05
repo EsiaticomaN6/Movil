@@ -887,6 +887,7 @@ body {
   background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.15);
   border-radius:10px;padding:9px 16px;cursor:pointer;color:#fff;font-size:13px;font-weight:700;}
 </style>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 
@@ -984,6 +985,13 @@ body {
           </div>
         </div>
         <div id="topbar-action"></div>
+        <!-- Drive Sync Button -->
+        <button id="drive-sync-btn" onclick="driveSync.openPanel()" title="Sincronización Google Drive"
+          style="background:none;border:none;cursor:pointer;padding:6px;border-radius:10px;display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:var(--text2);transition:background .15s"
+          onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background='none'">
+          <span id="drive-sync-icon" style="font-size:18px">☁️</span>
+          <span id="drive-sync-label" style="font-size:10px;line-height:1.2;text-align:left;max-width:52px;display:none">Sin conectar</span>
+        </button>
       </div>
     </div>
 
@@ -1186,6 +1194,22 @@ body {
             <div id="cfg-pw-error" style="color:var(--red);font-size:13px;display:none"></div>
             <button onclick="changePassword()" class="btn btn-primary" style="align-self:flex-start;padding:12px 24px">
               🔒 Guardar contraseña
+            </button>
+          </div>
+        </div>
+
+        <div class="config-section" style="border:2px solid #bbdefb">
+          <h3 style="color:#1565c0">☁️ Sincronización Google Drive</h3>
+          <div style="font-size:13px;color:var(--text2);margin-bottom:14px">
+            Comparte el inventario entre dos dispositivos usando un archivo JSON en tu Google Drive.
+          </div>
+          <div class="config-row">
+            <div>
+              <label>Estado de conexión</label><br>
+              <span id="cfg-drive-status">No conectado</span>
+            </div>
+            <button onclick="driveSync.openPanel()" style="background:#e3f2fd;color:#1565c0;border:2px solid #90caf9;border-radius:8px;padding:8px 14px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
+              ☁️ Configurar Drive
             </button>
           </div>
         </div>
@@ -1598,6 +1622,85 @@ body {
         📸 Foto con cámara nativa
         <input type="file" accept="image/*" capture="environment" style="display:none" onchange="scFromPhoto(this)">
       </label>
+    </div>
+  </div>
+</div>
+
+<!-- ======== GOOGLE DRIVE SYNC PANEL ======== -->
+<div class="modal-overlay" id="drive-panel" style="z-index:3000" onclick="if(event.target===this)driveSync.closePanel()">
+  <div class="modal-box" style="max-width:360px;padding:0;overflow:hidden">
+    <div style="background:linear-gradient(135deg,#4285f4,#34a853);padding:24px;color:#fff;position:relative">
+      <div style="font-size:28px;margin-bottom:6px">☁️</div>
+      <div style="font-size:17px;font-weight:700">Google Drive Sync</div>
+      <div style="font-size:12px;opacity:.85;margin-top:2px">Inventario compartido entre dispositivos</div>
+    </div>
+    <div style="padding:20px;display:flex;flex-direction:column;gap:14px">
+
+      <!-- Estado conexión -->
+      <div id="drive-status-box" style="background:var(--bg);border-radius:12px;padding:14px;display:flex;align-items:center;gap:12px">
+        <div id="drive-status-dot" style="width:10px;height:10px;border-radius:50%;background:#9ca3af;flex-shrink:0"></div>
+        <div>
+          <div id="drive-status-text" style="font-size:13px;font-weight:600;color:var(--text)">No conectado</div>
+          <div id="drive-status-sub" style="font-size:11px;color:var(--text2);margin-top:1px">Conéctate con tu cuenta Google</div>
+        </div>
+      </div>
+
+      <!-- Client ID input (solo cuando no está conectado) -->
+      <div id="drive-clientid-section">
+        <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px">Google Client ID <span style="color:var(--text2);font-weight:400">(OAuth 2.0)</span></div>
+        <input class="input-field" id="drive-clientid-input" placeholder="xxxxxx.apps.googleusercontent.com"
+          style="font-size:11px;font-family:monospace" value="">
+        <div style="font-size:10px;color:var(--text2);margin-top:5px">
+          📋 <a href="https://console.cloud.google.com" target="_blank" style="color:var(--accent)">Obtener en Google Cloud Console</a> → APIs & Services → Credenciales → OAuth 2.0
+        </div>
+      </div>
+
+      <!-- Nombre archivo Drive -->
+      <div id="drive-filename-section">
+        <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px">Nombre del archivo en Drive</div>
+        <input class="input-field" id="drive-filename-input" value="farmacia-ire-db.json" placeholder="farmacia-ire-db.json" style="font-size:12px">
+        <div style="font-size:10px;color:var(--text2);margin-top:4px">Ambos dispositivos deben usar el mismo nombre</div>
+      </div>
+
+      <!-- Botones acción -->
+      <div id="drive-btn-connect" style="display:flex;flex-direction:column;gap:8px">
+        <button onclick="driveSync.connect()" class="btn btn-primary" style="width:100%;justify-content:center;gap:8px;font-size:14px">
+          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" style="width:16px;height:16px;background:#fff;border-radius:2px;padding:1px"> Conectar con Google
+        </button>
+      </div>
+
+      <div id="drive-btn-connected" style="display:none;flex-direction:column;gap:8px">
+        <button onclick="driveSync.pullFromDrive()" class="btn btn-primary" style="width:100%;justify-content:center;font-size:14px">
+          ⬇️ Descargar de Drive
+        </button>
+        <button onclick="driveSync.pushToDrive()" style="width:100%;background:#e8f5e9;color:#2e7d32;border:2px solid #a5d6a7;border-radius:10px;padding:12px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer">
+          ⬆️ Subir a Drive
+        </button>
+        <button onclick="driveSync.disconnect()" style="width:100%;background:#fff0f0;color:var(--red);border:2px solid #fecaca;border-radius:10px;padding:10px;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer">
+          🔌 Desconectar
+        </button>
+      </div>
+
+      <!-- Info última sync -->
+      <div id="drive-last-sync" style="display:none;background:var(--bg);border-radius:10px;padding:10px;font-size:11px;color:var(--text2);text-align:center">
+        Última sincronización: <span id="drive-last-sync-time">—</span>
+      </div>
+
+      <!-- Auto-sync toggle -->
+      <div id="drive-autosync-row" style="display:none;display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-top:1px solid var(--border)">
+        <div>
+          <div style="font-size:12px;font-weight:600;color:var(--text)">Auto-sync al guardar</div>
+          <div style="font-size:10px;color:var(--text2)">Sube automáticamente cada cambio</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="drive-autosync-toggle" onchange="driveSync.toggleAutoSync(this.checked)">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+    </div>
+    <div style="padding:0 20px 20px">
+      <button onclick="driveSync.closePanel()" class="btn btn-secondary" style="width:100%;justify-content:center">Cerrar</button>
     </div>
   </div>
 </div>
@@ -3352,8 +3455,320 @@ window.addEventListener('resize', fixIOSHeight);
 window.addEventListener('orientationchange', () => setTimeout(fixIOSHeight, 200));
 fixIOSHeight();
 
-// ===== START =====
+// ===== GOOGLE DRIVE SYNC MODULE =====
+const driveSync = (() => {
+  const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+  const DRIVE_API = 'https://www.googleapis.com/drive/v3';
+  const UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3';
+  const LS_KEY = 'fire_drive_cfg';
+
+  let _token = null;
+  let _fileId = null;
+  let _cfg = {};
+
+  // ── Load persisted config ──
+  function _loadCfg() {
+    try { _cfg = JSON.parse(localStorage.getItem(LS_KEY) || '{}'); } catch(e) { _cfg = {}; }
+    _fileId = _cfg.fileId || null;
+    if (_cfg.clientId) document.getElementById('drive-clientid-input').value = _cfg.clientId;
+    if (_cfg.filename) document.getElementById('drive-filename-input').value = _cfg.filename;
+    if (_cfg.autosync !== undefined) document.getElementById('drive-autosync-toggle').checked = _cfg.autosync;
+    if (_cfg.lastSync) {
+      document.getElementById('drive-last-sync-time').textContent = new Date(_cfg.lastSync).toLocaleString('es-MX');
+    }
+  }
+
+  function _saveCfg() {
+    localStorage.setItem(LS_KEY, JSON.stringify(_cfg));
+  }
+
+  // ── UI helpers ──
+  function _setStatus(connected, text, sub) {
+    const dot = document.getElementById('drive-status-dot');
+    const txt = document.getElementById('drive-status-text');
+    const s   = document.getElementById('drive-status-sub');
+    const btnConnect    = document.getElementById('drive-btn-connect');
+    const btnConnected  = document.getElementById('drive-btn-connected');
+    const cidSec        = document.getElementById('drive-clientid-section');
+    const fnSec         = document.getElementById('drive-filename-section');
+    const lastSync      = document.getElementById('drive-last-sync');
+    const autoRow       = document.getElementById('drive-autosync-row');
+    const syncIcon      = document.getElementById('drive-sync-icon');
+    const syncLabel     = document.getElementById('drive-sync-label');
+
+    dot.style.background = connected ? '#22c55e' : (text === 'Error' ? '#ef4444' : '#9ca3af');
+    txt.textContent  = text;
+    s.textContent    = sub;
+    btnConnect.style.display    = connected ? 'none' : 'flex';
+    btnConnected.style.display  = connected ? 'flex' : 'none';
+    cidSec.style.display        = connected ? 'none' : 'block';
+    fnSec.style.display         = connected ? 'none' : 'block';
+    lastSync.style.display      = connected ? 'block' : 'none';
+    autoRow.style.display       = connected ? 'flex' : 'none';
+    syncIcon.textContent        = connected ? '🟢' : '☁️';
+    syncLabel.style.display     = connected ? 'block' : 'none';
+    syncLabel.textContent       = connected ? 'Drive ON' : 'Sin conectar';
+  }
+
+  function _setSyncing(active) {
+    document.getElementById('drive-sync-icon').textContent = active ? '🔄' : (_token ? '🟢' : '☁️');
+  }
+
+  // ── OAuth token via GIS ──
+  function _getToken() {
+    return new Promise((resolve, reject) => {
+      const clientId = document.getElementById('drive-clientid-input').value.trim();
+      if (!clientId) { reject('Ingresa tu Client ID primero'); return; }
+
+      if (typeof google === 'undefined' || !google.accounts) {
+        reject('La librería de Google no cargó. Verifica tu conexión a internet.'); return;
+      }
+
+      const client = google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: SCOPES,
+        callback: (resp) => {
+          if (resp.error) { reject(resp.error); return; }
+          _token = resp.access_token;
+          resolve(_token);
+        },
+        error_callback: (err) => reject(err.message || 'Error de autenticación'),
+      });
+      client.requestAccessToken({ prompt: _token ? '' : 'consent' });
+    });
+  }
+
+  // ── Drive file helpers ──
+  async function _findFile(filename) {
+    const q = encodeURIComponent(`name='${filename}' and trashed=false`);
+    const r = await fetch(`${DRIVE_API}/files?q=${q}&fields=files(id,name,modifiedTime)&spaces=drive`, {
+      headers: { Authorization: `Bearer ${_token}` }
+    });
+    const d = await r.json();
+    return (d.files && d.files.length > 0) ? d.files[0] : null;
+  }
+
+  async function _readFile(fileId) {
+    const r = await fetch(`${DRIVE_API}/files/${fileId}?alt=media`, {
+      headers: { Authorization: `Bearer ${_token}` }
+    });
+    if (!r.ok) throw new Error('No se pudo leer el archivo de Drive');
+    return r.json();
+  }
+
+  async function _writeFile(fileId, filename, data) {
+    const body = JSON.stringify(data);
+    const blob = new Blob([body], { type: 'application/json' });
+
+    if (fileId) {
+      // Update existing
+      const r = await fetch(`${UPLOAD_API}/files/${fileId}?uploadType=media`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${_token}`, 'Content-Type': 'application/json' },
+        body
+      });
+      if (!r.ok) throw new Error('Error al actualizar archivo en Drive');
+      return fileId;
+    } else {
+      // Create new
+      const meta = JSON.stringify({ name: filename, mimeType: 'application/json' });
+      const form = new FormData();
+      form.append('metadata', new Blob([meta], { type: 'application/json' }));
+      form.append('file', blob);
+      const r = await fetch(`${UPLOAD_API}/files?uploadType=multipart&fields=id`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${_token}` },
+        body: form
+      });
+      if (!r.ok) throw new Error('Error al crear archivo en Drive');
+      const d = await r.json();
+      return d.id;
+    }
+  }
+
+  // ── Build DB snapshot ──
+  function _buildSnapshot() {
+    return {
+      _version: 2,
+      _savedAt: new Date().toISOString(),
+      _device: navigator.userAgent.substring(0, 40),
+      products,
+      sales,
+      users,
+      config
+    };
+  }
+
+  // ── Apply snapshot to app ──
+  function _applySnapshot(snap) {
+    if (!snap || !snap._version) throw new Error('Archivo inválido o corrupto');
+    products = snap.products || products;
+    sales    = snap.sales    || sales;
+    // Don't overwrite users if empty in snapshot
+    if (snap.users && snap.users.length > 0) users = snap.users;
+    if (snap.config) {
+      config = { ...config, ...snap.config };
+      loadConfig();
+    }
+    save('products', products);
+    save('sales', sales);
+    save('users', users);
+    save('config', config);
+    // Refresh UI
+    if (typeof renderInventory  === 'function') renderInventory();
+    if (typeof renderSalesHistory=== 'function') renderSalesHistory();
+    if (typeof renderPOSProducts === 'function') renderPOSProducts();
+    if (typeof renderReports     === 'function') renderReports();
+    if (typeof renderUserGrid    === 'function') renderUserGrid();
+    updatePOSToday();
+  }
+
+  // ── Public API ──
+  function openPanel() {
+    _loadCfg();
+    document.getElementById('drive-panel').classList.add('active');
+    if (_token) {
+      _setStatus(true, 'Conectado', 'Sesión activa de Google');
+    }
+  }
+
+  function closePanel() {
+    document.getElementById('drive-panel').classList.remove('active');
+  }
+
+  async function connect() {
+    const clientId = document.getElementById('drive-clientid-input').value.trim();
+    const filename = document.getElementById('drive-filename-input').value.trim() || 'farmacia-ire-db.json';
+    if (!clientId) { showToast('⚠️ Ingresa tu Client ID de Google', 'warning'); return; }
+
+    _setStatus(false, 'Conectando...', 'Esperando autorización de Google');
+    try {
+      await _getToken();
+      _cfg.clientId = clientId;
+      _cfg.filename = filename;
+      _saveCfg();
+
+      // Try to find existing file
+      const existing = await _findFile(filename);
+      if (existing) {
+        _fileId = existing.id;
+        _cfg.fileId = _fileId;
+        _saveCfg();
+        _setStatus(true, 'Conectado', `Archivo encontrado en Drive`);
+        showToast('✅ Conectado. ¿Descargar datos de Drive?', 'success');
+      } else {
+        _setStatus(true, 'Conectado', 'Archivo nuevo (sube tus datos)');
+        showToast('✅ Conectado. No hay archivo aún — sube tus datos.', 'success');
+      }
+    } catch(e) {
+      _setStatus(false, 'Error de conexión', String(e));
+      showToast('❌ ' + String(e), 'error');
+    }
+  }
+
+  async function pullFromDrive() {
+    if (!_token) { showToast('⚠️ Conéctate primero', 'warning'); return; }
+    _setSyncing(true);
+    const filename = _cfg.filename || 'farmacia-ire-db.json';
+    try {
+      let file = _fileId ? { id: _fileId } : await _findFile(filename);
+      if (!file) { showToast('⚠️ No hay archivo en Drive aún. Sube primero.', 'warning'); _setSyncing(false); return; }
+      _fileId = file.id;
+      _cfg.fileId = _fileId;
+
+      const snap = await _readFile(_fileId);
+      const driveDate = new Date(snap._savedAt);
+      const confirm = window.confirm(
+        `⬇️ Descargar desde Drive\n\nÚltima actualización: ${driveDate.toLocaleString('es-MX')}\nDispositivo: ${snap._device || '—'}\n\nEsto reemplazará el inventario y ventas locales. ¿Continuar?`
+      );
+      if (!confirm) { _setSyncing(false); return; }
+
+      _applySnapshot(snap);
+      _cfg.lastSync = new Date().toISOString();
+      _saveCfg();
+      document.getElementById('drive-last-sync-time').textContent = new Date(_cfg.lastSync).toLocaleString('es-MX');
+      _setSyncing(false);
+      showToast('✅ Datos descargados de Drive', 'success');
+    } catch(e) {
+      _setSyncing(false);
+      showToast('❌ Error al descargar: ' + e.message, 'error');
+    }
+  }
+
+  async function pushToDrive(silent = false) {
+    if (!_token) {
+      if (!silent) showToast('⚠️ Conéctate a Drive primero', 'warning');
+      return;
+    }
+    _setSyncing(true);
+    const filename = _cfg.filename || 'farmacia-ire-db.json';
+    try {
+      const snap = _buildSnapshot();
+      _fileId = await _writeFile(_fileId, filename, snap);
+      _cfg.fileId = _fileId;
+      _cfg.lastSync = new Date().toISOString();
+      _saveCfg();
+      document.getElementById('drive-last-sync-time').textContent = new Date(_cfg.lastSync).toLocaleString('es-MX');
+      _setSyncing(false);
+      if (!silent) showToast('✅ Datos subidos a Drive', 'success');
+      else showToast('☁️ Auto-sync: guardado en Drive', 'success');
+    } catch(e) {
+      _setSyncing(false);
+      if (!silent) showToast('❌ Error al subir: ' + e.message, 'error');
+    }
+  }
+
+  function toggleAutoSync(on) {
+    _cfg.autosync = on;
+    _saveCfg();
+    showToast(on ? '✅ Auto-sync activado' : '⏸️ Auto-sync desactivado', 'success');
+  }
+
+  function disconnect() {
+    if (!confirm('¿Desconectar Google Drive? (Los datos locales no se borran)')) return;
+    _token = null;
+    _fileId = null;
+    _cfg = {};
+    localStorage.removeItem(LS_KEY);
+    _setStatus(false, 'No conectado', 'Conéctate con tu cuenta Google');
+    document.getElementById('drive-clientid-input').value = '';
+    showToast('🔌 Desconectado de Drive', 'success');
+  }
+
+  // Auto-sync hook — called after every save
+  function autoSync() {
+    if (_token && _cfg.autosync) {
+      setTimeout(() => pushToDrive(true), 800);
+    }
+  }
+
+  // Init on load
+  function init() {
+    _loadCfg();
+    // If we have a clientId saved, show indicator
+    if (_cfg.clientId) {
+      document.getElementById('drive-sync-label').style.display = 'block';
+      document.getElementById('drive-sync-label').textContent = 'Drive OFF';
+    }
+  }
+
+  return { openPanel, closePanel, connect, pullFromDrive, pushToDrive, toggleAutoSync, disconnect, autoSync, init };
+})();
+
+// ===== END GOOGLE DRIVE SYNC MODULE =====
+
+// Patch save() to trigger auto-sync on every data change
+const _origSave = save;
+window.save = function(key, val) {
+  _origSave(key, val);
+  if (key === 'products' || key === 'sales') {
+    driveSync.autoSync();
+  }
+};
+
+// Boot app
 init();
+driveSync.init();
 </script>
 
 <script>
