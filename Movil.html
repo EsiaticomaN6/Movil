@@ -3772,13 +3772,32 @@ driveSync.init();
 // ===== SERVICE WORKER (offline + installable) =====
 if ('serviceWorker' in navigator) {
   const swCode = `
-    self.addEventListener('install', e => { self.skipWaiting(); });
-    self.addEventListener('activate', e => { e.waitUntil(clients.claim()); });
-    self.addEventListener('fetch', e => { e.respondWith(fetch(e.request).catch(() => caches.match(e.request))); });
+    const CACHE = 'farmacia-ire-v${Date.now()}';
+    self.addEventListener('install', e => {
+      self.skipWaiting();
+    });
+    self.addEventListener('activate', e => {
+      e.waitUntil(
+        caches.keys().then(keys =>
+          Promise.all(keys.map(k => caches.delete(k)))
+        ).then(() => clients.claim())
+      );
+    });
+    self.addEventListener('fetch', e => {
+      // Always try network first, only fall back to cache for same-origin HTML
+      e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+    });
   `;
   const blob = new Blob([swCode], {type: 'application/javascript'});
   const swUrl = URL.createObjectURL(blob);
-  navigator.serviceWorker.register(swUrl).catch(() => {});
+  // Unregister old service workers first, then register new one
+  navigator.serviceWorker.getRegistrations().then(regs => {
+    Promise.all(regs.map(r => r.unregister())).then(() => {
+      navigator.serviceWorker.register(swUrl).catch(() => {});
+    });
+  }).catch(() => {
+    navigator.serviceWorker.register(swUrl).catch(() => {});
+  });
 }
 </script>
 </body>
