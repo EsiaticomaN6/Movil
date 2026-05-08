@@ -881,6 +881,8 @@ body {
 #sc-manual input::placeholder{color:rgba(255,255,255,.3);}
 #sc-manual button{background:#4f6ef7;color:#fff;border:none;padding:8px 16px;
   border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;}
+#sc-photo-row{padding:0 16px 14px;text-align:center;}
+#sc-photo-row small{display:block;color:rgba(255,255,255,.35);font-size:11px;margin-bottom:6px;}
 #sc-photo-label{display:inline-flex;align-items:center;gap:8px;
   background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.15);
   border-radius:10px;padding:9px 16px;cursor:pointer;color:#fff;font-size:13px;font-weight:700;}
@@ -1590,7 +1592,13 @@ body {
         placeholder="O escribe el código…" onkeydown="if(event.key==='Enter')scManual()">
       <button onclick="scManual()">Buscar</button>
     </div>
-
+    <div id="sc-photo-row">
+      <small>¿No enfoca? Toma una foto</small>
+      <label id="sc-photo-label">
+        📸 Foto con cámara nativa
+        <input type="file" accept="image/*" capture="environment" style="display:none" onchange="scFromPhoto(this)">
+      </label>
+    </div>
   </div>
 </div>
 
@@ -2186,6 +2194,22 @@ function filterInventory() {
 
   document.getElementById('inv-count').textContent = `${filtered.length} de ${products.length} productos`;
   const tbody = document.getElementById('inv-tbody');
+
+  if (!filtered.length && q) {
+    tbody.innerHTML = `<tr><td colspan="17">
+      <div style="text-align:center;padding:24px 16px">
+        <div style="font-size:36px;margin-bottom:8px">🔎</div>
+        <div style="font-weight:700;font-size:14px;color:var(--text);margin-bottom:4px">Producto no encontrado</div>
+        <div style="font-size:12px;color:var(--text3);margin-bottom:16px">No hay resultados para "<b>${q}</b>"</div>
+        <button onclick="openAddProductWithBarcode('${q.replace(/'/g,"\\'")}');document.getElementById('inv-search').value='';filterInventory();"
+          style="background:var(--accent);color:#fff;border:none;border-radius:10px;padding:12px 20px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:8px">
+          ➕ Agregar como nuevo producto
+        </button>
+      </div>
+    </td></tr>`;
+    return;
+  }
+
   tbody.innerHTML = filtered.map(p => {
     const ss = p.stock === 0 ? 'stock-out' : p.stock <= (p.min||0) ? 'stock-low' : 'stock-ok';
     const sv = p.stock === 0 ? 'Sin stock' : p.stock <= (p.min||0) ? 'Stock bajo' : 'OK';
@@ -3126,6 +3150,34 @@ window.scManual = function() {
   scClose();
 };
 
+window.scFromPhoto = function(input) {
+  var file = input.files[0];
+  if (!file) return;
+  _setStatus('Analizando imagen…');
+  var img = new Image();
+  var url = URL.createObjectURL(file);
+  img.onload = function() {
+    var canvas = document.createElement('canvas');
+    var max = 1200;
+    var w = img.width, h = img.height;
+    if (w > max || h > max) { var r = Math.min(max/w,max/h); w=Math.round(w*r); h=Math.round(h*r); }
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+    URL.revokeObjectURL(url);
+    if (window.BarcodeDetector) {
+      new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128','code_39']})
+        .detect(canvas)
+        .then(function(res) {
+          if (res && res[0]) { _apply(res[0].rawValue); scClose(); }
+          else _setStatus('⚠️ No se detectó código — intenta de nuevo');
+        }).catch(function(){ _setStatus('⚠️ Error al analizar imagen'); });
+    } else {
+      _setStatus('⚠️ Foto no compatible — escribe el código');
+    }
+    input.value = '';
+  };
+  img.src = url;
+};
 
 // Cerrar scanner (llamado desde botones externos que usan el nombre antiguo)
 window.closeScanner = window.scClose;
