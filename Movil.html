@@ -1738,6 +1738,7 @@ function navigate(page, el) {
     // Auto-expand today when entering sales history
     const todaySafeKey = new Date().toDateString().replace(/[^a-zA-Z0-9]/g, '_');
     _salesExpandedDays.add(todaySafeKey);
+    setTimeout(renderSales, 0);
     actionEl.innerHTML = `<button onclick="exportSalesExcel()" style="background:#eef1fe;color:var(--accent);border:2px solid var(--accent);border-radius:10px;padding:6px 10px;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">📊 Exportar</button>`;
   } else if (page === 'reports') {
     actionEl.innerHTML = `<button onclick="exportReportsExcel()" style="background:#eef1fe;color:var(--accent);border:2px solid var(--accent);border-radius:10px;padding:6px 10px;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">📊 Exportar</button>`;
@@ -2679,20 +2680,20 @@ function renderSales() {
   const groups = {};
   sales.slice().reverse().forEach(s => {
     const d = new Date(s.date);
-    const key = d.toDateString();
-    if (!groups[key]) groups[key] = { date: d, sales: [] };
-    groups[key].sales.push(s);
+    const rawKey = d.toDateString();
+    const safeKey = rawKey.replace(/[^a-zA-Z0-9]/g, '_');
+    if (!groups[safeKey]) groups[safeKey] = { date: d, rawKey, sales: [] };
+    groups[safeKey].sales.push(s);
   });
 
-  const todayKey = new Date().toDateString();
+  const todaySafeKey = new Date().toDateString().replace(/[^a-zA-Z0-9]/g, '_');
 
-  el.innerHTML = Object.entries(groups).map(([key, g]) => {
-    const isToday = key === todayKey;
-    const isOpen = _salesExpandedDays.has(key);
+  el.innerHTML = Object.entries(groups).map(([safeKey, g]) => {
+    const isToday = safeKey === todaySafeKey;
+    const isOpen = _salesExpandedDays.has(safeKey);
     const dayTotal = g.sales.reduce((a, s) => a + s.total, 0);
     const dayCount = g.sales.length;
     const dayLabel = isToday ? 'Hoy' : g.date.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
-    const safeKey = key.replace(/[^a-zA-Z0-9]/g, '_');
 
     const salesHTML = g.sales.map((s, i) => {
       const realIdx = sales.length - 1 - sales.slice().reverse().findIndex(x => x.ticketNum === s.ticketNum);
