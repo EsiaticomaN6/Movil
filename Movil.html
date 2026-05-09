@@ -1735,6 +1735,9 @@ function navigate(page, el) {
   // Contextual topbar action button
   const actionEl = document.getElementById('topbar-action');
   if (page === 'sales') {
+    // Auto-expand today when entering sales history
+    const todaySafeKey = new Date().toDateString().replace(/[^a-zA-Z0-9]/g, '_');
+    _salesExpandedDays.add(todaySafeKey);
     actionEl.innerHTML = `<button onclick="exportSalesExcel()" style="background:#eef1fe;color:var(--accent);border:2px solid var(--accent);border-radius:10px;padding:6px 10px;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">📊 Exportar</button>`;
   } else if (page === 'reports') {
     actionEl.innerHTML = `<button onclick="exportReportsExcel()" style="background:#eef1fe;color:var(--accent);border:2px solid var(--accent);border-radius:10px;padding:6px 10px;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">📊 Exportar</button>`;
@@ -2194,22 +2197,6 @@ function filterInventory() {
 
   document.getElementById('inv-count').textContent = `${filtered.length} de ${products.length} productos`;
   const tbody = document.getElementById('inv-tbody');
-
-  if (!filtered.length && q) {
-    tbody.innerHTML = `<tr><td colspan="17">
-      <div style="text-align:center;padding:24px 16px">
-        <div style="font-size:36px;margin-bottom:8px">🔎</div>
-        <div style="font-weight:700;font-size:14px;color:var(--text);margin-bottom:4px">Producto no encontrado</div>
-        <div style="font-size:12px;color:var(--text3);margin-bottom:16px">No hay resultados para "<b>${q}</b>"</div>
-        <button onclick="openAddProductWithBarcode('${q.replace(/'/g,"\\'")}');document.getElementById('inv-search').value='';filterInventory();"
-          style="background:var(--accent);color:#fff;border:none;border-radius:10px;padding:12px 20px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:8px">
-          ➕ Agregar como nuevo producto
-        </button>
-      </div>
-    </td></tr>`;
-    return;
-  }
-
   tbody.innerHTML = filtered.map(p => {
     const ss = p.stock === 0 ? 'stock-out' : p.stock <= (p.min||0) ? 'stock-low' : 'stock-ok';
     const sv = p.stock === 0 ? 'Sin stock' : p.stock <= (p.min||0) ? 'Stock bajo' : 'OK';
@@ -2668,27 +2655,86 @@ function addToCartFromConsulta(pid) {
 }
 
 // ===== SALES =====
+// Track which day groups are expanded
+const _salesExpandedDays = new Set();
+
+function toggleSalesDay(dateKey) {
+  if (_salesExpandedDays.has(dateKey)) {
+    _salesExpandedDays.delete(dateKey);
+  } else {
+    _salesExpandedDays.add(dateKey);
+  }
+  renderSales();
+}
+
 function renderSales() {
   const el = document.getElementById('sales-list');
   if (!sales.length) {
     el.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><p>No hay ventas registradas</p></div>';
+    renderTodaySales();
     return;
   }
-  el.innerHTML = sales.map(s => `
-    <div class="sale-card">
-      <div class="sale-card-header">
-        <div>
-          <div style="font-weight:700;font-size:15px">${s.ticketNum}</div>
-          <div class="sale-meta">${new Date(s.date).toLocaleString('es-MX')} · ${s.user}</div>
-          <div class="sale-items-preview">${s.items.map(i=>i.name).join(', ')}</div>
+
+  // Group by day
+  const groups = {};
+  sales.slice().reverse().forEach(s => {
+    const d = new Date(s.date);
+    const key = d.toDateString();
+    if (!groups[key]) groups[key] = { date: d, sales: [] };
+    groups[key].sales.push(s);
+  });
+
+  const todayKey = new Date().toDateString();
+
+  el.innerHTML = Object.entries(groups).map(([key, g]) => {
+    const isToday = key === todayKey;
+    const isOpen = _salesExpandedDays.has(key);
+    const dayTotal = g.sales.reduce((a, s) => a + s.total, 0);
+    const dayCount = g.sales.length;
+    const dayLabel = isToday ? 'Hoy' : g.date.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
+    const safeKey = key.replace(/[^a-zA-Z0-9]/g, '_');
+
+    const salesHTML = g.sales.map((s, i) => {
+      const realIdx = sales.length - 1 - sales.slice().reverse().findIndex(x => x.ticketNum === s.ticketNum);
+      return `
+      <div class="sale-card" style="margin:0 0 8px 0;border-radius:10px">
+        <div class="sale-card-header">
+          <div>
+            <div style="font-weight:700;font-size:15px">${s.ticketNum}</div>
+            <div class="sale-meta">${new Date(s.date).toLocaleString('es-MX', {hour:'2-digit',minute:'2-digit'})} · ${s.user}</div>
+            <div class="sale-items-preview">${s.items.map(i=>i.name).join(', ')}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="sale-amount">${fmt(s.total)}</div>
+            <div class="sale-meta">${s.items.reduce((a,c)=>a+c.qty,0)} artículos</div>
+            <div class="sale-meta">${s.payment==='cash'?'💵 Efectivo':s.payment==='card'?'💳 Tarjeta':'🏦 Transferencia'}</div>
+          </div>
         </div>
-        <div style="text-align:right">
-          <div class="sale-amount">${fmt(s.total)}</div>
-          <div class="sale-meta">${s.items.reduce((a,c)=>a+c.qty,0)} artículos</div>
-          <div class="sale-meta">${s.payment==='cash'?'💵 Efectivo':s.payment==='card'?'💳 Tarjeta':'🏦 Transferencia'}</div>
+        <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
+          <button onclick="showTicketModal(sales.find(x=>x.ticketNum==='${s.ticketNum}'), true)"
+            style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:7px 14px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;color:var(--accent);display:inline-flex;align-items:center;gap:6px">
+            🧾 Ver ticket
+          </button>
+        </div>
+      </div>`;
+    }).join('');
+
+    return `
+    <div style="margin-bottom:10px;border-radius:14px;overflow:hidden;border:1.5px solid var(--border);background:var(--surface)">
+      <div onclick="toggleSalesDay('${safeKey}')" style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;cursor:pointer;user-select:none;background:${isToday?'var(--accent)':'var(--bg2)'};${isToday?'color:#fff':''}">
+        <div>
+          <div style="font-weight:700;font-size:15px;${isToday?'color:#fff':''}">${isToday?'📅 Hoy':'📅 '+dayLabel.charAt(0).toUpperCase()+dayLabel.slice(1)}</div>
+          <div style="font-size:12px;opacity:.75;margin-top:2px">${dayCount} venta${dayCount!==1?'s':''}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="font-weight:800;font-size:16px;${isToday?'color:#fff':'color:var(--accent)'}">${fmt(dayTotal)}</div>
+          <div style="font-size:18px;transition:transform .2s;transform:rotate(${isOpen?'180':'0'}deg);${isToday?'color:#fff':'color:var(--text3)'}">▾</div>
         </div>
       </div>
-    </div>`).join('');
+      ${isOpen ? `<div style="padding:12px">${salesHTML}</div>` : ''}
+    </div>`;
+  }).join('');
+
   renderTodaySales();
 }
 
