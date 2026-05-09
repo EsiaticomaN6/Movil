@@ -3025,11 +3025,9 @@ ${methodLinesWA || '  Sin ventas'}
 }
 
 function limpiarVentasHoy() {
-  const today = new Date().toDateString();
-  sales = sales.filter(s => new Date(s.date).toDateString() !== today);
-  save('sales', sales);
-  renderTodaySales();
-  renderSales();
+  // Solo limpia el panel visual del POS, NO borra el historial de ventas
+  const el = document.getElementById('today-sales-list');
+  if (el) el.innerHTML = '<div class="empty-state"><div class="empty-icon">🏧</div><p>Corte realizado</p></div>';
 }
 
 function enviarCorteWA() {
