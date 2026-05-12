@@ -2148,10 +2148,23 @@ function sendWhatsApp() {
 
 function renderTodaySales() {
   const today = new Date().toDateString();
-  const todaySales = sales.filter(s => new Date(s.date).toDateString() === today);
+  const ultimoCorteStr = localStorage.getItem('ultimoCorte');
+  const ultimoCorte = ultimoCorteStr ? new Date(ultimoCorteStr) : null;
+
+  // Solo mostrar ventas posteriores al último corte de hoy
+  let todaySales = sales.filter(s => {
+    const d = new Date(s.date);
+    if (d.toDateString() !== today) return false;
+    if (ultimoCorte && ultimoCorte.toDateString() === today && d <= ultimoCorte) return false;
+    return true;
+  });
+
   const el = document.getElementById('today-sales-list');
   if (!todaySales.length) {
-    el.innerHTML = '<div class="empty-state"><div class="empty-icon">🧾</div><p>No hay ventas aún hoy</p></div>';
+    const msg = (ultimoCorte && ultimoCorte.toDateString() === today)
+      ? '<div class="empty-state"><div class="empty-icon">🏧</div><p>Corte realizado</p></div>'
+      : '<div class="empty-state"><div class="empty-icon">🧾</div><p>No hay ventas aún hoy</p></div>';
+    el.innerHTML = msg;
     return;
   }
   el.innerHTML = todaySales.map(s => `
@@ -3025,9 +3038,9 @@ ${methodLinesWA || '  Sin ventas'}
 }
 
 function limpiarVentasHoy() {
-  // Solo limpia el panel visual del POS, NO borra el historial de ventas
-  const el = document.getElementById('today-sales-list');
-  if (el) el.innerHTML = '<div class="empty-state"><div class="empty-icon">🏧</div><p>Corte realizado</p></div>';
+  // Guarda la hora del corte en localStorage para que persista entre cambios de usuario
+  localStorage.setItem('ultimoCorte', new Date().toISOString());
+  renderTodaySales();
 }
 
 function enviarCorteWA() {
