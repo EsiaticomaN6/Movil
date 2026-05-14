@@ -887,6 +887,52 @@ body {
   background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.15);
   border-radius:10px;padding:9px 16px;cursor:pointer;color:#fff;font-size:13px;font-weight:700;}
 </style>
+
+<!-- Firebase -->
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+  import { getFirestore, doc, setDoc, onSnapshot, collection } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyB81SbirFc17VYKc2lHsx_JrMkmxfl-0xY",
+    authDomain: "farmacia-ire-d1c58.firebaseapp.com",
+    projectId: "farmacia-ire-d1c58",
+    storageBucket: "farmacia-ire-d1c58.firebasestorage.app",
+    messagingSenderId: "927395288909",
+    appId: "1:927395288909:web:d4c9523325a2a5c1500904"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db  = getFirestore(app);
+
+  // Exponer funciones globales para que el código principal las use
+  window._fbSaveProducts = async function(products) {
+    try {
+      await setDoc(doc(db, 'farmacia', 'products'), { list: products });
+    } catch(e) { console.warn('Firebase save error:', e); }
+  };
+
+  window._fbListenProducts = function(callback) {
+    return onSnapshot(doc(db, 'farmacia', 'products'), snap => {
+      if (snap.exists()) callback(snap.data().list || []);
+    }, err => console.warn('Firebase listen error:', err));
+  };
+
+  window._fbSaveSales = async function(sales) {
+    try {
+      await setDoc(doc(db, 'farmacia', 'sales'), { list: sales });
+    } catch(e) { console.warn('Firebase save sales error:', e); }
+  };
+
+  window._fbListenSales = function(callback) {
+    return onSnapshot(doc(db, 'farmacia', 'sales'), snap => {
+      if (snap.exists()) callback(snap.data().list || []);
+    }, err => console.warn('Firebase listen sales error:', err));
+  };
+
+  window._fbReady = true;
+  document.dispatchEvent(new Event('firebase-ready'));
+</script>
 </head>
 <body>
 
@@ -1187,34 +1233,6 @@ body {
             <button onclick="changePassword()" class="btn btn-primary" style="align-self:flex-start;padding:12px 24px">
               🔒 Guardar contraseña
             </button>
-          </div>
-        </div>
-
-        <div class="config-section">
-          <h3>💾 Respaldo de datos</h3>
-          <p style="font-size:13px;color:var(--text2);margin-bottom:14px">
-            Exporta un archivo de respaldo con todo el inventario e historial de ventas. Puedes cargarlo en otro teléfono para transferir los datos.
-          </p>
-          <div style="display:flex;flex-direction:column;gap:10px">
-            <div class="config-row">
-              <div>
-                <label>Exportar respaldo</label><br>
-                <span>Descarga un archivo .json con inventario y ventas</span>
-              </div>
-              <button onclick="exportarRespaldo()" style="background:#eef1fe;color:var(--accent);border:2px solid var(--accent);border-radius:8px;padding:8px 14px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
-                📤 Exportar
-              </button>
-            </div>
-            <div class="config-row">
-              <div>
-                <label>Importar respaldo</label><br>
-                <span>Carga un archivo .json exportado previamente</span>
-              </div>
-              <label style="background:#f0fdf4;color:#15803d;border:2px solid #86efac;border-radius:8px;padding:8px 14px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
-                📥 Importar
-                <input type="file" accept=".json" style="display:none" onchange="importarRespaldo(this)">
-              </label>
-            </div>
           </div>
         </div>
 
@@ -1573,7 +1591,7 @@ body {
         <div style="font-size:12px;font-weight:700;color:#15803d">El reporte será enviado por WhatsApp</div>
       </div>
       <div style="display:flex;gap:10px">
-        <button onclick="limpiarVentasHoy();closeModal('corte-modal')"
+        <button onclick="closeModal('corte-modal')"
           style="flex:1;background:#f4f5f9;color:#6b7280;border:none;border-radius:50px;padding:14px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer">
           Cerrar
         </button>
@@ -1634,8 +1652,16 @@ body {
 <div class="toast" id="toast"></div>
 
 <script>
-// ===== DATA STORE (localStorage) =====
-function save(key, val) { localStorage.setItem('fire_'+key, JSON.stringify(val)); }
+// ===== DATA STORE (localStorage + Firebase para productos) =====
+function save(key, val) {
+  localStorage.setItem('fire_'+key, JSON.stringify(val));
+  if (key === 'products' && window._fbSaveProducts) {
+    window._fbSaveProducts(val);
+  }
+  if (key === 'sales' && window._fbSaveSales) {
+    window._fbSaveSales(val);
+  }
+}
 function load(key, def) { const v = localStorage.getItem('fire_'+key); return v ? JSON.parse(v) : def; }
 
 let users = load('users', [
@@ -1661,6 +1687,47 @@ function init() {
   setInterval(updateTopbarDate, 1000);
   document.addEventListener('click', () => { document.getElementById('ctx-menu').classList.remove('active'); });
   loadConfig();
+
+  // Suscribirse a cambios de inventario en Firebase
+  function suscribirFirebase() {
+    if (!window._fbListenProducts) return;
+    window._fbListenProducts(function(lista) {
+      // Solo actualizar si hay diferencia real para no hacer renders innecesarios
+      if (JSON.stringify(lista) !== JSON.stringify(products)) {
+        products = lista;
+        localStorage.setItem('fire_products', JSON.stringify(lista));
+        renderInventory();
+        if (document.getElementById('page-pos') && document.getElementById('page-pos').classList.contains('active')) {
+          // Refrescar búsqueda activa si hay texto
+          const q = document.getElementById('pos-search-input');
+          if (q && q.value) searchProducts();
+        }
+
+      }
+    });
+  }
+
+  function suscribirSales() {
+    if (!window._fbListenSales) return;
+    window._fbListenSales(function(lista) {
+      if (JSON.stringify(lista) !== JSON.stringify(sales)) {
+        sales = lista;
+        localStorage.setItem('fire_sales', JSON.stringify(lista));
+        renderSales();
+        renderTodaySales();
+      }
+    });
+  }
+
+  if (window._fbReady) {
+    suscribirFirebase();
+    suscribirSales();
+  } else {
+    document.addEventListener('firebase-ready', () => {
+      suscribirFirebase();
+      suscribirSales();
+    }, { once: true });
+  }
 }
 
 function updateTopbarDate() {
@@ -2148,23 +2215,10 @@ function sendWhatsApp() {
 
 function renderTodaySales() {
   const today = new Date().toDateString();
-  const ultimoCorteStr = localStorage.getItem('ultimoCorte');
-  const ultimoCorte = ultimoCorteStr ? new Date(ultimoCorteStr) : null;
-
-  // Solo mostrar ventas posteriores al último corte de hoy
-  let todaySales = sales.filter(s => {
-    const d = new Date(s.date);
-    if (d.toDateString() !== today) return false;
-    if (ultimoCorte && ultimoCorte.toDateString() === today && d <= ultimoCorte) return false;
-    return true;
-  });
-
+  const todaySales = sales.filter(s => new Date(s.date).toDateString() === today);
   const el = document.getElementById('today-sales-list');
   if (!todaySales.length) {
-    const msg = (ultimoCorte && ultimoCorte.toDateString() === today)
-      ? '<div class="empty-state"><div class="empty-icon">🏧</div><p>Corte realizado</p></div>'
-      : '<div class="empty-state"><div class="empty-icon">🧾</div><p>No hay ventas aún hoy</p></div>';
-    el.innerHTML = msg;
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">🧾</div><p>No hay ventas aún hoy</p></div>';
     return;
   }
   el.innerHTML = todaySales.map(s => `
@@ -3037,14 +3091,7 @@ ${methodLinesWA || '  Sin ventas'}
   document.getElementById('corte-step2').style.display = 'block';
 }
 
-function limpiarVentasHoy() {
-  // Guarda la hora del corte en localStorage para que persista entre cambios de usuario
-  localStorage.setItem('ultimoCorte', new Date().toISOString());
-  renderTodaySales();
-}
-
 function enviarCorteWA() {
-  limpiarVentasHoy();
   closeModal('corte-modal');
   setTimeout(() => {
     const a = document.createElement('a');
@@ -3055,65 +3102,6 @@ function enviarCorteWA() {
     a.click();
     document.body.removeChild(a);
   }, 200);
-}
-
-function exportarRespaldo() {
-  const respaldo = {
-    version: 1,
-    fecha: new Date().toISOString(),
-    farmacia: config.name || 'Farmacia IRE',
-    products,
-    sales
-  };
-  const blob = new Blob([JSON.stringify(respaldo, null, 2)], { type: 'application/json' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  const fecha = new Date().toLocaleDateString('es-MX').replace(/\//g,'-');
-  a.href     = url;
-  a.download = `respaldo-farmacia-${fecha}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  showToast('✅ Respaldo exportado');
-}
-
-function importarRespaldo(input) {
-  const file = input.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    try {
-      const data = JSON.parse(e.target.result);
-      if (!data.products || !data.sales) {
-        showToast('❌ Archivo inválido — no es un respaldo válido');
-        input.value = '';
-        return;
-      }
-      const totalProd = data.products.length;
-      const totalVentas = data.sales.length;
-      if (!confirm(
-        `¿Importar este respaldo?\n\n` +
-        `📦 ${totalProd} productos\n` +
-        `🧾 ${totalVentas} ventas\n` +
-        (data.farmacia ? `🏪 ${data.farmacia}\n` : '') +
-        (data.fecha ? `📅 ${new Date(data.fecha).toLocaleDateString('es-MX')}\n` : '') +
-        `\n⚠️ Esto reemplazará el inventario y las ventas actuales.`
-      )) { input.value = ''; return; }
-      products = data.products;
-      sales    = data.sales;
-      save('products', products);
-      save('sales', sales);
-      renderInventory();
-      renderSales();
-      renderTodaySales();
-      showToast(`✅ Respaldo importado: ${totalProd} productos, ${totalVentas} ventas`);
-    } catch(err) {
-      showToast('❌ Error al leer el archivo');
-    }
-    input.value = '';
-  };
-  reader.readAsText(file);
 }
 
 function exportSalesExcel() {
