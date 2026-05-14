@@ -1880,6 +1880,38 @@ const GDrive = (() => {
     if (!res.ok) throw new Error('Error subiendo a Drive');
   }
 
+  /* ── Merge helpers ── */
+  function mergeById(local, remote) {
+    const map = {};
+    (remote || []).forEach(r => { map[r.id] = {...r}; });
+    (local  || []).forEach(l => {
+      if (!map[l.id]) {
+        map[l.id] = {...l};
+      } else {
+        const rTs = new Date(map[l.id].updatedAt || map[l.id].date || map[l.id].fecha || 0).getTime();
+        const lTs = new Date(l.updatedAt || l.date || l.fecha || 0).getTime();
+        if (lTs >= rTs) map[l.id] = {...l};
+      }
+    });
+    return Object.values(map);
+  }
+
+  function mergeSnaps(local, remote) {
+    return {
+      ts:       Math.max(local.ts, remote.ts || 0),
+      version:  4,
+      products: mergeById(local.products, remote.products),
+      sales:    mergeById(local.sales,    remote.sales),
+      usuarios: mergeById(local.usuarios || local.users || [], remote.usuarios || remote.users || []),
+      users:    mergeById(local.users || local.usuarios || [], remote.users || remote.usuarios || []),
+      clientes: mergeById(local.clientes || [], remote.clientes || []),
+      entradas: mergeById(local.entradas || [], remote.entradas || []),
+      cortes:   mergeById(local.cortes   || [], remote.cortes   || []),
+      config:   remote.ts > local.ts ? {...local.config, ...remote.config} : local.config,
+      ctrs:     remote.ctrs || local.ctrs
+    };
+  }
+
   async function syncNow(direction = 'both') {
     if (!_enabled || !_accessToken || _isSyncing) return;
     _isSyncing = true;
@@ -1888,20 +1920,23 @@ const GDrive = (() => {
       if (direction === 'upload') {
         await uploadToDrive(getLocalSnapshot());
         _lastSyncTs = Date.now();
-        setStatus('☁ Sync: hace un momento', 'ok');
+        setStatus('☁ Sync: subido', 'ok');
       } else {
+        // MERGE BIDIRECCIONAL
         const remote = await downloadFromDrive();
-        const local = getLocalSnapshot();
-        if (remote.ts > local.ts) {
-          applyRemoteSnapshot(remote);
-          renderAll();
-          setStatus('☁ Sync: actualizado', 'ok');
-        } else if (local.ts > remote.ts) {
-          await uploadToDrive(local);
-          setStatus('☁ Sync: subido', 'ok');
-        } else {
-          setStatus('☁ Sync: al día', 'ok');
-        }
+        const local  = getLocalSnapshot();
+        const merged = mergeSnaps(local, remote);
+
+        console.log('[GDrive móvil merge] local:', local.products.length, 'p/', local.sales.length,
+          'v | remote:', (remote.products||[]).length, 'p/', (remote.sales||[]).length,
+          'v | merged:', merged.products.length, 'p/', merged.sales.length, 'v');
+
+        // Aplicar merge localmente
+        applyRemoteSnapshot(merged);
+        renderAll();
+        // Subir merge a Drive
+        await uploadToDrive(merged);
+        setStatus('☁ Sync: ' + merged.products.length + 'p/' + merged.sales.length + 'v', 'ok');
         _lastSyncTs = Date.now();
       }
     } catch (e) {
@@ -2006,7 +2041,17 @@ const GDrive = (() => {
 })();
 
 // ===== DATA STORE (localStorage + GDrive) =====
-function save(key, val) { GDrive.saveAndSync(key, val); }
+function save(key, val) {
+  // Marcar updatedAt en cada registro al guardar
+  if (key === 'products' && Array.isArray(val)) {
+    const now = new Date().toISOString();
+    val.forEach(p => { p.updatedAt = now; });
+  }
+  if (key === 'sales' && Array.isArray(val)) {
+    val.forEach(s => { if(!s.updatedAt) s.updatedAt = s.date || new Date().toISOString(); });
+  }
+  GDrive.saveAndSync(key, val);
+}
 function load(key, def) { const v = localStorage.getItem('fire_'+key); return v ? JSON.parse(v) : def; }
 
 function renderAll() {
