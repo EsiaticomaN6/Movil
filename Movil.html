@@ -2302,8 +2302,8 @@ function filterInventory() {
       <td style="font-family:'JetBrains Mono',monospace;font-size:11px;white-space:nowrap">${p.expiry||'—'}</td>
       <td><span class="stock-badge ${ss}">${sv}</span></td>
       <td style="white-space:nowrap">
-        <button onclick="openEditProduct(${p.id})" style="background:none;border:none;font-size:17px;cursor:pointer;padding:3px 5px;border-radius:6px;transition:background .1s" title="Editar" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background='none'">✏️</button>
-        <button onclick="ctxTargetId=${p.id};ctxDelete()" style="background:none;border:none;font-size:17px;cursor:pointer;padding:3px 5px;border-radius:6px;transition:background .1s" title="Eliminar" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='none'">🗑️</button>
+        <button onclick="openEditProduct('${p.id}')" style="background:none;border:none;font-size:17px;cursor:pointer;padding:3px 5px;border-radius:6px;transition:background .1s" title="Editar" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background='none'">✏️</button>
+        <button onclick="ctxTargetId='${p.id}';ctxDelete()" style="background:none;border:none;font-size:17px;cursor:pointer;padding:3px 5px;border-radius:6px;transition:background .1s" title="Eliminar" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='none'">🗑️</button>
       </td>
     </tr>`;
   }).join('');
@@ -2526,7 +2526,7 @@ function ctxEdit() {
 
 function ctxAddStock() {
   document.getElementById('ctx-menu').classList.remove('active');
-  const prod = products.find(p => p.id === ctxTargetId);
+  const prod = products.find(p => String(p.id) === String(ctxTargetId));
   if (!prod) return;
   const qty = prompt(`¿Cuántas unidades agregar a "${prod.name}"? (stock actual: ${prod.stock})`);
   if (!qty || isNaN(qty)) return;
@@ -2538,8 +2538,8 @@ function ctxAddStock() {
 
 function ctxViewHistory() {
   document.getElementById('ctx-menu').classList.remove('active');
-  const prod = products.find(p => p.id === ctxTargetId);
-  const related = sales.filter(s => s.items.some(i => i.id === ctxTargetId));
+  const prod = products.find(p => String(p.id) === String(ctxTargetId));
+  const related = sales.filter(s => s.items.some(i => String(i.id) === String(ctxTargetId)));
   const info = related.length
     ? related.map(s=>`${s.ticketNum} · ${new Date(s.date).toLocaleDateString('es-MX')} · -${s.items.find(i=>i.id===ctxTargetId).qty}`).join('\n')
     : 'Sin movimientos registrados';
@@ -2548,10 +2548,10 @@ function ctxViewHistory() {
 
 function ctxDelete() {
   document.getElementById('ctx-menu').classList.remove('active');
-  const prod = products.find(p => p.id === ctxTargetId);
+  const prod = products.find(p => String(p.id) === String(ctxTargetId));
   if (!prod) return;
   if (confirm(`¿Eliminar "${prod.name}"? Esta acción no se puede deshacer.`)) {
-    products = products.filter(p => p.id !== ctxTargetId);
+    products = products.filter(p => String(p.id) !== String(ctxTargetId));
     save('products', products);
     renderInventory();
     showToast('🗑️ Producto eliminado');
@@ -2590,8 +2590,8 @@ function openAddProduct() {
 }
 
 function openEditProduct(id) {
-  editingProductId = id;
-  const p = products.find(pr => pr.id === id);
+  editingProductId = String(id);
+  const p = products.find(pr => String(pr.id) === String(id));
   if (!p) return;
   document.getElementById('pf-title').textContent = '✏️ Editar Producto';
   document.getElementById('pf-sku').value           = p.sku || genSKU(p);
@@ -2640,7 +2640,7 @@ function saveProduct() {
     expiry:         document.getElementById('pf-expiry').value,
   };
   if (editingProductId) {
-    const idx = products.findIndex(p => p.id === editingProductId);
+    const idx = products.findIndex(p => String(p.id) === String(editingProductId));
     products[idx] = { ...products[idx], ...data };
   } else {
     data.id = Date.now();
