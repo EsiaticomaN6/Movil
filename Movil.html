@@ -968,6 +968,11 @@ body {
     <div class="nav-item" data-page="config" onclick="navigate('config',this)">
       <span class="nav-icon">⚙️</span> Configuración
     </div>
+    <div class="nav-item" onclick="showGDriveModal()" style="cursor:pointer;">
+      <span class="nav-icon">☁</span>
+      <span style="flex:1">Google Drive</span>
+      <span id="gdrive-nav-dot" style="width:8px;height:8px;border-radius:50%;background:#9ca3af;flex-shrink:0;margin-left:4px;"></span>
+    </div>
   </div>
 
   <!-- Main column -->
@@ -1654,17 +1659,24 @@ const GDrive = (() => {
   let _accessToken = null;
 
   function setStatus(msg, type='info') {
-    const el = document.getElementById('gdrive-status');
-    if (!el) return;
+    // Actualizar punto de color en el menú lateral
+    const dot = document.getElementById('gdrive-nav-dot');
     const colors = { info: '#4f6ef7', ok: '#22c55e', error: '#ef4444', warn: '#f97316' };
-    el.textContent = msg;
-    el.style.color = colors[type] || colors.info;
+    if (dot) dot.style.background = colors[type] || colors.info;
+    // Actualizar estado en el modal si está abierto
+    const modalStatus = document.getElementById('gdrive-modal-status');
+    if (modalStatus) modalStatus.textContent = msg;
   }
 
   function setSyncIcon(spinning) {
-    const btn = document.getElementById('gdrive-sync-btn');
-    if (!btn) return;
-    btn.textContent = spinning ? '⏳' : '☁';
+    const dot = document.getElementById('gdrive-nav-dot');
+    if (!dot) return;
+    if (spinning) {
+      dot.style.background = '#4f6ef7';
+      dot.style.opacity = '0.5';
+    } else {
+      dot.style.opacity = '1';
+    }
   }
 
   function loadSettings() {
@@ -3779,19 +3791,6 @@ init();
 GDrive.init();
 </script>
 
-<!-- ===== GOOGLE DRIVE FLOATING BUTTON ===== -->
-<div id="gdrive-fab" onclick="showGDriveModal()" title="Sincronización Google Drive"
-  style="position:fixed;bottom:84px;right:16px;z-index:8000;
-         background:#fff;border-radius:50px;
-         box-shadow:0 4px 18px rgba(0,0,0,0.18);
-         display:flex;align-items:center;gap:6px;
-         padding:7px 13px 7px 10px;cursor:pointer;
-         border:1.5px solid #e5e7eb;
-         transition:box-shadow 0.2s;">
-  <span id="gdrive-sync-btn" style="font-size:20px;line-height:1">☁</span>
-  <span id="gdrive-status" style="font-size:10px;font-weight:700;color:#6b7280;white-space:nowrap;max-width:80px;overflow:hidden;text-overflow:ellipsis;">Sin Drive</span>
-</div>
-
 <!-- ===== GOOGLE DRIVE MODAL ===== -->
 <div id="gdrive-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.55);align-items:center;justify-content:center;">
   <div style="background:#fff;border-radius:20px;padding:28px 24px;max-width:400px;width:92%;box-shadow:0 8px 40px rgba(0,0,0,0.22);position:relative;">
@@ -3846,6 +3845,8 @@ function showGDriveModal() {
   modal.style.display = 'flex';
   const settings = GDrive.loadSettings();
   document.getElementById('gdrive-client-id-input').value = settings.clientId || '';
+  const statusEl = document.getElementById('gdrive-modal-status');
+  if (statusEl) statusEl.textContent = GDrive.isEnabled() ? '✅ Conectado a Google Drive' : 'Sin conexión a Google Drive';
   updateGDriveModalButtons();
 }
 
