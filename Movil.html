@@ -2531,6 +2531,7 @@ function ctxAddStock() {
   const qty = prompt(`¿Cuántas unidades agregar a "${prod.name}"? (stock actual: ${prod.stock})`);
   if (!qty || isNaN(qty)) return;
   prod.stock += parseInt(qty);
+  prod._ts = Date.now();
   save('products', products);
   renderInventory();
   showToast(`📦 +${qty} unidades a ${prod.name}`);
@@ -2625,6 +2626,7 @@ function saveProduct() {
   if (!name || price <= 0) { showToast('⚠️ Nombre y precio son obligatorios'); return; }
   const cost = parseFloat(document.getElementById('pf-cost').value)||0;
   const data = {
+    _ts: Date.now(),
     barcode:        document.getElementById('pf-barcode').value.trim(),
     name,
     desc:           document.getElementById('pf-desc').value.trim(),
@@ -3792,8 +3794,12 @@ function _driveMerge(remote) {
     rem.forEach(r => {
       const key = String(r.id);
       const l = map.get(key);
-      const rTs = r._ts || 0, lTs = l ? (l._ts || 0) : -1;
-      if (!l || rTs > lTs) { map.set(key, r); upd = true; }
+      const rTs = r._ts || 0;
+      const lTs = l ? (l._ts || 0) : -1;
+      // Gana el más reciente. Si ambos son 0 (sin _ts), remoto gana solo si no existe local.
+      if (!l || rTs > lTs || (rTs === 0 && lTs === 0 && !l)) {
+        map.set(key, r); upd = true;
+      }
     });
     return { arr: Array.from(map.values()), changed: upd };
   }
