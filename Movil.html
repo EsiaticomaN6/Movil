@@ -1890,14 +1890,15 @@ function searchProducts(q) {
         <div class="product-row-price">$${(p.price||0).toFixed(2)}</div>
         <div class="product-row-stock">Stock: ${p.stock}</div>
       </div>
-      <button class="add-btn" onclick="addToCart(${p.id})" ${p.stock<=0?'disabled style="background:var(--text3)"':''}>
+      <button class="add-btn" onclick="addToCart('${p.id}')" ${p.stock<=0?'disabled style="background:var(--text3)"':''}>
         ${p.stock<=0?'Sin stock':'+'}
       </button>
     </div>`).join('');
 }
 
 function addToCart(pid) {
-  const prod = products.find(p => p.id === pid);
+  // Coerce id — may be string from Drive sync or number from local
+  const prod = products.find(p => String(p.id) === String(pid));
   if (!prod || prod.stock <= 0) return;
   const existing = cart.find(c => c.id === pid);
   if (existing) {
@@ -2714,7 +2715,7 @@ function consultaSearch(q) {
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
           <div style="font-size:22px;font-weight:800;color:var(--accent)">${fmt(p.price||0)}</div>
           <button
-            onclick="addToCartFromConsulta(${p.id})"
+            onclick="addToCartFromConsulta('${p.id}')"
             ${p.stock<=0 ? 'disabled' : ''}
             style="background:${p.stock<=0?'var(--text3)':'var(--green)'};color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:inherit;font-size:13px;font-weight:700;cursor:${p.stock<=0?'not-allowed':'pointer'};white-space:nowrap;transition:filter .15s"
           >🛒 ${p.stock<=0?'Sin stock':'+ Al ticket'}</button>
@@ -2725,9 +2726,9 @@ function consultaSearch(q) {
 }
 
 function addToCartFromConsulta(pid) {
-  addToCart(pid);
+  addToCart(String(pid));
   // Show cart count feedback
-  const btn = document.querySelector(`[onclick="addToCartFromConsulta(${pid})"]`);
+  const btn = document.querySelector(`[onclick="addToCartFromConsulta('${pid}')"]`) || document.querySelector(`[onclick="addToCartFromConsulta(${pid})"]`);
   if (btn) {
     btn.textContent = '✅ Agregado';
     setTimeout(() => { btn.textContent = '🛒 + Al ticket'; }, 1500);
@@ -3825,13 +3826,17 @@ function _driveMerge(remote) {
   if (um.changed) { users = um.arr; save('users', users); changed = true; }
 
   if (changed) {
-    if (typeof posRenderGrid    === 'function') posRenderGrid();
-    else if (typeof renderInventory === 'function') renderInventory();
     if (typeof renderInventory  === 'function') renderInventory();
     if (typeof renderSales      === 'function') renderSales();
     if (typeof renderTodaySales === 'function') renderTodaySales();
     if (typeof renderReports    === 'function') renderReports();
     if (typeof fillDeptList     === 'function') fillDeptList();
+    // Actualizar resultados del modal de búsqueda si está abierto
+    const psModal = document.getElementById('product-search-modal');
+    const psInput = document.getElementById('ps-search');
+    if (psModal && psModal.classList.contains('active') && psInput && psInput.value.trim()) {
+      if (typeof searchProducts === 'function') searchProducts(psInput.value);
+    }
     // sync silent (no toast)
   }
 }
