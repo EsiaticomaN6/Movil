@@ -3769,6 +3769,21 @@ async function _drivePull() {
 function _driveMerge(remote) {
   let changed = false;
 
+  // Si el remoto tiene _cleared, borrar datos locales también
+  if (remote._cleared) {
+    products = []; sales = [];
+    ['products','sales'].forEach(k =>
+      localStorage.setItem('fire_' + k, JSON.stringify(k==='products'?products:sales))
+    );
+    clearTimeout(_syncTimer); _syncPending = false;
+    if (typeof renderInventory  === 'function') renderInventory();
+    if (typeof renderSales      === 'function') renderSales();
+    if (typeof renderTodaySales === 'function') renderTodaySales();
+    if (typeof fillDeptList     === 'function') fillDeptList();
+    if (typeof showToast        === 'function') showToast('🗑 Datos borrados desde otro dispositivo');
+    return;
+  }
+
   function mergeById(local, rem) {
     if (!Array.isArray(rem) || !rem.length) return { arr: local, changed: false };
     const map = new Map(local.map(x => [String(x.id), x]));
