@@ -13,6 +13,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 :root {
   --navy: #1a1f3a;
@@ -60,6 +61,13 @@ body {
   padding-top: env(safe-area-inset-top);
   padding-top: constant(safe-area-inset-top);
 }
+
+/* ========== GOOGLE DRIVE SYNC BUTTON ========== */
+#gdrive-sync-btn {
+  transition: transform 0.3s ease;
+  user-select: none;
+}
+#gdrive-sync-btn:hover { transform: scale(1.15); }
 
 /* ========== LOGIN SCREEN ========== */
 #login-screen {
@@ -887,52 +895,6 @@ body {
   background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.15);
   border-radius:10px;padding:9px 16px;cursor:pointer;color:#fff;font-size:13px;font-weight:700;}
 </style>
-
-<!-- Firebase -->
-<script type="module">
-  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-  import { getFirestore, doc, setDoc, onSnapshot, collection } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyB81SbirFc17VYKc2lHsx_JrMkmxfl-0xY",
-    authDomain: "farmacia-ire-d1c58.firebaseapp.com",
-    projectId: "farmacia-ire-d1c58",
-    storageBucket: "farmacia-ire-d1c58.firebasestorage.app",
-    messagingSenderId: "927395288909",
-    appId: "1:927395288909:web:d4c9523325a2a5c1500904"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const db  = getFirestore(app);
-
-  // Exponer funciones globales para que el código principal las use
-  window._fbSaveProducts = async function(products) {
-    try {
-      await setDoc(doc(db, 'farmacia', 'products'), { list: products });
-    } catch(e) { console.warn('Firebase save error:', e); }
-  };
-
-  window._fbListenProducts = function(callback) {
-    return onSnapshot(doc(db, 'farmacia', 'products'), snap => {
-      if (snap.exists()) callback(snap.data().list || []);
-    }, err => console.warn('Firebase listen error:', err));
-  };
-
-  window._fbSaveSales = async function(sales) {
-    try {
-      await setDoc(doc(db, 'farmacia', 'sales'), { list: sales });
-    } catch(e) { console.warn('Firebase save sales error:', e); }
-  };
-
-  window._fbListenSales = function(callback) {
-    return onSnapshot(doc(db, 'farmacia', 'sales'), snap => {
-      if (snap.exists()) callback(snap.data().list || []);
-    }, err => console.warn('Firebase listen sales error:', err));
-  };
-
-  window._fbReady = true;
-  document.dispatchEvent(new Event('firebase-ready'));
-</script>
 </head>
 <body>
 
@@ -1030,6 +992,10 @@ body {
           </div>
         </div>
         <div id="topbar-action"></div>
+        <div style="display:flex;align-items:center;gap:4px;cursor:pointer" onclick="showGDriveModal()" title="Sincronización Google Drive">
+          <span id="gdrive-sync-btn" style="font-size:18px;line-height:1">☁</span>
+          <span id="gdrive-status" style="font-size:9px;font-weight:600;color:var(--text3);max-width:70px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Sin Drive</span>
+        </div>
       </div>
     </div>
 
@@ -1233,6 +1199,34 @@ body {
             <button onclick="changePassword()" class="btn btn-primary" style="align-self:flex-start;padding:12px 24px">
               🔒 Guardar contraseña
             </button>
+          </div>
+        </div>
+
+        <div class="config-section">
+          <h3>💾 Respaldo de datos</h3>
+          <p style="font-size:13px;color:var(--text2);margin-bottom:14px">
+            Exporta un archivo de respaldo con todo el inventario e historial de ventas. Puedes cargarlo en otro teléfono para transferir los datos.
+          </p>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div class="config-row">
+              <div>
+                <label>Exportar respaldo</label><br>
+                <span>Descarga un archivo .json con inventario y ventas</span>
+              </div>
+              <button onclick="exportarRespaldo()" style="background:#eef1fe;color:var(--accent);border:2px solid var(--accent);border-radius:8px;padding:8px 14px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
+                📤 Exportar
+              </button>
+            </div>
+            <div class="config-row">
+              <div>
+                <label>Importar respaldo</label><br>
+                <span>Carga un archivo .json exportado previamente</span>
+              </div>
+              <label style="background:#f0fdf4;color:#15803d;border:2px solid #86efac;border-radius:8px;padding:8px 14px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
+                📥 Importar
+                <input type="file" accept=".json" style="display:none" onchange="importarRespaldo(this)">
+              </label>
+            </div>
           </div>
         </div>
 
@@ -1591,7 +1585,7 @@ body {
         <div style="font-size:12px;font-weight:700;color:#15803d">El reporte será enviado por WhatsApp</div>
       </div>
       <div style="display:flex;gap:10px">
-        <button onclick="closeModal('corte-modal')"
+        <button onclick="limpiarVentasHoy();closeModal('corte-modal')"
           style="flex:1;background:#f4f5f9;color:#6b7280;border:none;border-radius:50px;padding:14px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer">
           Cerrar
         </button>
@@ -1652,17 +1646,255 @@ body {
 <div class="toast" id="toast"></div>
 
 <script>
-// ===== DATA STORE (localStorage + Firebase para productos) =====
-function save(key, val) {
-  localStorage.setItem('fire_'+key, JSON.stringify(val));
-  if (key === 'products' && window._fbSaveProducts) {
-    window._fbSaveProducts(val);
+// ===== GOOGLE DRIVE SYNC MODULE =====
+const GDrive = (() => {
+  const DB_FILENAME = 'farmacia-ire-db.json';
+  const SYNC_INTERVAL_MS = 30000; // 30 segundos
+  let _fileId = null;
+  let _syncTimer = null;
+  let _lastSyncTs = 0;
+  let _isSyncing = false;
+  let _enabled = false;
+  let _clientId = '';
+  let _tokenClient = null;
+  let _accessToken = null;
+
+  function setStatus(msg, type='info') {
+    const el = document.getElementById('gdrive-status');
+    if (!el) return;
+    const colors = { info: '#4f6ef7', ok: '#22c55e', error: '#ef4444', warn: '#f97316' };
+    el.textContent = msg;
+    el.style.color = colors[type] || colors.info;
   }
-  if (key === 'sales' && window._fbSaveSales) {
-    window._fbSaveSales(val);
+
+  function setSyncIcon(spinning) {
+    const btn = document.getElementById('gdrive-sync-btn');
+    if (!btn) return;
+    btn.textContent = spinning ? '⏳' : '☁';
   }
-}
+
+  function loadSettings() {
+    const s = localStorage.getItem('gdrive_settings');
+    return s ? JSON.parse(s) : { enabled: false, clientId: '', fileId: null };
+  }
+
+  function saveSettings(obj) {
+    localStorage.setItem('gdrive_settings', JSON.stringify(obj));
+  }
+
+  function getLocalSnapshot() {
+    return {
+      ts: Date.now(),
+      version: 2,
+      products: load('products', []),
+      sales: load('sales', []),
+      users: load('users', [{ id: 1, name: 'Administrador', role: 'admin', color: '#4f6ef7', password: '' }]),
+      config: load('config', { name: 'Farmacia IRE', iva: 0, currency: 'MXN', minstock: 5, autoprint: false, ticketmsg: '¡Gracias por su compra!' })
+    };
+  }
+
+  function applyRemoteSnapshot(data) {
+    if (!data || data.version < 2) return false;
+    if (typeof data.products !== 'undefined') { products = data.products; save('products', products); }
+    if (typeof data.sales !== 'undefined') { sales = data.sales; save('sales', sales); }
+    if (typeof data.users !== 'undefined') { users = data.users; save('users', users); }
+    if (typeof data.config !== 'undefined') { config = data.config; save('config', config); }
+    return true;
+  }
+
+  async function fetchWithToken(url, opts = {}) {
+    if (!_accessToken) throw new Error('Sin token');
+    const headers = { 'Authorization': 'Bearer ' + _accessToken, ...(opts.headers || {}) };
+    const res = await fetch(url, { ...opts, headers });
+    if (res.status === 401) { _accessToken = null; throw new Error('Token expirado'); }
+    return res;
+  }
+
+  async function findOrCreateFile() {
+    const settings = loadSettings();
+    if (settings.fileId) { _fileId = settings.fileId; return _fileId; }
+    // Buscar archivo existente
+    const q = `name='${DB_FILENAME}' and mimeType='application/json' and trashed=false`;
+    const searchRes = await fetchWithToken(
+      `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name,modifiedTime)`,
+      { method: 'GET' }
+    );
+    const searchData = await searchRes.json();
+    if (searchData.files && searchData.files.length > 0) {
+      _fileId = searchData.files[0].id;
+    } else {
+      // Crear archivo nuevo
+      const meta = { name: DB_FILENAME, mimeType: 'application/json' };
+      const body = JSON.stringify(getLocalSnapshot());
+      const boundary = '-------farmaciaIRE';
+      const multipart = `--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(meta)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${body}\r\n--${boundary}--`;
+      const createRes = await fetchWithToken(
+        'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
+        { method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body: multipart }
+      );
+      const createData = await createRes.json();
+      _fileId = createData.id;
+    }
+    const s = loadSettings();
+    s.fileId = _fileId;
+    saveSettings(s);
+    return _fileId;
+  }
+
+  async function downloadFromDrive() {
+    await findOrCreateFile();
+    const res = await fetchWithToken(`https://www.googleapis.com/drive/v3/files/${_fileId}?alt=media`);
+    if (!res.ok) throw new Error('Error descargando de Drive');
+    return await res.json();
+  }
+
+  async function uploadToDrive(snapshot) {
+    await findOrCreateFile();
+    const body = JSON.stringify(snapshot);
+    const res = await fetchWithToken(
+      `https://www.googleapis.com/upload/drive/v3/files/${_fileId}?uploadType=media`,
+      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body }
+    );
+    if (!res.ok) throw new Error('Error subiendo a Drive');
+  }
+
+  async function syncNow(direction = 'both') {
+    if (!_enabled || !_accessToken || _isSyncing) return;
+    _isSyncing = true;
+    setSyncIcon(true);
+    try {
+      if (direction === 'upload') {
+        await uploadToDrive(getLocalSnapshot());
+        _lastSyncTs = Date.now();
+        setStatus('☁ Sync: hace un momento', 'ok');
+      } else {
+        const remote = await downloadFromDrive();
+        const local = getLocalSnapshot();
+        if (remote.ts > local.ts) {
+          applyRemoteSnapshot(remote);
+          renderAll();
+          setStatus('☁ Sync: actualizado', 'ok');
+        } else if (local.ts > remote.ts) {
+          await uploadToDrive(local);
+          setStatus('☁ Sync: subido', 'ok');
+        } else {
+          setStatus('☁ Sync: al día', 'ok');
+        }
+        _lastSyncTs = Date.now();
+      }
+    } catch (e) {
+      console.error('GDrive sync error', e);
+      setStatus('☁ Sin sincronizar', 'warn');
+    } finally {
+      _isSyncing = false;
+      setSyncIcon(false);
+    }
+  }
+
+  function startAutoSync() {
+    if (_syncTimer) clearInterval(_syncTimer);
+    _syncTimer = setInterval(() => syncNow('both'), SYNC_INTERVAL_MS);
+  }
+
+  function stopAutoSync() {
+    if (_syncTimer) clearInterval(_syncTimer);
+    _syncTimer = null;
+  }
+
+  function requestToken() {
+    return new Promise((resolve, reject) => {
+      if (!window.google || !window.google.accounts) { reject(new Error('Google SDK no cargado')); return; }
+      if (!_clientId) { reject(new Error('Sin Client ID')); return; }
+      if (!_tokenClient) {
+        _tokenClient = google.accounts.oauth2.initTokenClient({
+          client_id: _clientId,
+          scope: 'https://www.googleapis.com/auth/drive.file',
+          callback: (resp) => {
+            if (resp.error) { reject(new Error(resp.error)); return; }
+            _accessToken = resp.access_token;
+            resolve(_accessToken);
+          }
+        });
+      }
+      _tokenClient.requestAccessToken({ prompt: _accessToken ? '' : 'consent' });
+    });
+  }
+
+  async function connect(clientId) {
+    _clientId = clientId;
+    _tokenClient = null; // reset para nuevo clientId
+    try {
+      setStatus('Conectando…', 'info');
+      await requestToken();
+      _enabled = true;
+      _fileId = null; // reset para buscar/crear archivo
+      const s = loadSettings();
+      s.enabled = true;
+      s.clientId = clientId;
+      s.fileId = null;
+      saveSettings(s);
+      await syncNow('both');
+      startAutoSync();
+      setStatus('☁ Conectado', 'ok');
+      return true;
+    } catch(e) {
+      setStatus('Error: ' + e.message, 'error');
+      return false;
+    }
+  }
+
+  function disconnect() {
+    _enabled = false;
+    _accessToken = null;
+    _fileId = null;
+    stopAutoSync();
+    const s = loadSettings();
+    s.enabled = false;
+    s.fileId = null;
+    saveSettings(s);
+    setStatus('Desconectado', 'warn');
+  }
+
+  async function init() {
+    const settings = loadSettings();
+    _clientId = settings.clientId || '';
+    if (!settings.enabled || !_clientId) return;
+    // Intentar reconexión silenciosa
+    setStatus('Reconectando…', 'info');
+    try {
+      await requestToken();
+      _enabled = true;
+      _fileId = settings.fileId || null;
+      await syncNow('both');
+      startAutoSync();
+      setStatus('☁ Conectado', 'ok');
+    } catch(e) {
+      setStatus('☁ Sin conexión a Drive', 'warn');
+    }
+  }
+
+  function saveAndSync(key, val) {
+    localStorage.setItem('fire_'+key, JSON.stringify(val));
+    if (_enabled && _accessToken) {
+      setTimeout(() => syncNow('upload'), 500);
+    }
+  }
+
+  return { init, connect, disconnect, syncNow, saveAndSync, loadSettings, isEnabled: () => _enabled };
+})();
+
+// ===== DATA STORE (localStorage + GDrive) =====
+function save(key, val) { GDrive.saveAndSync(key, val); }
 function load(key, def) { const v = localStorage.getItem('fire_'+key); return v ? JSON.parse(v) : def; }
+
+function renderAll() {
+  // Refrescar vistas activas tras sync remota
+  try {
+    if (typeof renderInventory === 'function') renderInventory();
+    if (typeof renderSales === 'function') renderSales();
+    if (typeof renderUsers === 'function') renderUsers();
+  } catch(e) {}
+}
 
 let users = load('users', [
   { id: 1, name: 'Administrador', role: 'admin', color: '#4f6ef7', password: '' }
@@ -1687,47 +1919,6 @@ function init() {
   setInterval(updateTopbarDate, 1000);
   document.addEventListener('click', () => { document.getElementById('ctx-menu').classList.remove('active'); });
   loadConfig();
-
-  // Suscribirse a cambios de inventario en Firebase
-  function suscribirFirebase() {
-    if (!window._fbListenProducts) return;
-    window._fbListenProducts(function(lista) {
-      // Solo actualizar si hay diferencia real para no hacer renders innecesarios
-      if (JSON.stringify(lista) !== JSON.stringify(products)) {
-        products = lista;
-        localStorage.setItem('fire_products', JSON.stringify(lista));
-        renderInventory();
-        if (document.getElementById('page-pos') && document.getElementById('page-pos').classList.contains('active')) {
-          // Refrescar búsqueda activa si hay texto
-          const q = document.getElementById('pos-search-input');
-          if (q && q.value) searchProducts();
-        }
-
-      }
-    });
-  }
-
-  function suscribirSales() {
-    if (!window._fbListenSales) return;
-    window._fbListenSales(function(lista) {
-      if (JSON.stringify(lista) !== JSON.stringify(sales)) {
-        sales = lista;
-        localStorage.setItem('fire_sales', JSON.stringify(lista));
-        renderSales();
-        renderTodaySales();
-      }
-    });
-  }
-
-  if (window._fbReady) {
-    suscribirFirebase();
-    suscribirSales();
-  } else {
-    document.addEventListener('firebase-ready', () => {
-      suscribirFirebase();
-      suscribirSales();
-    }, { once: true });
-  }
 }
 
 function updateTopbarDate() {
@@ -2215,10 +2406,23 @@ function sendWhatsApp() {
 
 function renderTodaySales() {
   const today = new Date().toDateString();
-  const todaySales = sales.filter(s => new Date(s.date).toDateString() === today);
+  const ultimoCorteStr = localStorage.getItem('ultimoCorte');
+  const ultimoCorte = ultimoCorteStr ? new Date(ultimoCorteStr) : null;
+
+  // Solo mostrar ventas posteriores al último corte de hoy
+  let todaySales = sales.filter(s => {
+    const d = new Date(s.date);
+    if (d.toDateString() !== today) return false;
+    if (ultimoCorte && ultimoCorte.toDateString() === today && d <= ultimoCorte) return false;
+    return true;
+  });
+
   const el = document.getElementById('today-sales-list');
   if (!todaySales.length) {
-    el.innerHTML = '<div class="empty-state"><div class="empty-icon">🧾</div><p>No hay ventas aún hoy</p></div>';
+    const msg = (ultimoCorte && ultimoCorte.toDateString() === today)
+      ? '<div class="empty-state"><div class="empty-icon">🏧</div><p>Corte realizado</p></div>'
+      : '<div class="empty-state"><div class="empty-icon">🧾</div><p>No hay ventas aún hoy</p></div>';
+    el.innerHTML = msg;
     return;
   }
   el.innerHTML = todaySales.map(s => `
@@ -3091,7 +3295,14 @@ ${methodLinesWA || '  Sin ventas'}
   document.getElementById('corte-step2').style.display = 'block';
 }
 
+function limpiarVentasHoy() {
+  // Guarda la hora del corte en localStorage para que persista entre cambios de usuario
+  localStorage.setItem('ultimoCorte', new Date().toISOString());
+  renderTodaySales();
+}
+
 function enviarCorteWA() {
+  limpiarVentasHoy();
   closeModal('corte-modal');
   setTimeout(() => {
     const a = document.createElement('a');
@@ -3102,6 +3313,65 @@ function enviarCorteWA() {
     a.click();
     document.body.removeChild(a);
   }, 200);
+}
+
+function exportarRespaldo() {
+  const respaldo = {
+    version: 1,
+    fecha: new Date().toISOString(),
+    farmacia: config.name || 'Farmacia IRE',
+    products,
+    sales
+  };
+  const blob = new Blob([JSON.stringify(respaldo, null, 2)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  const fecha = new Date().toLocaleDateString('es-MX').replace(/\//g,'-');
+  a.href     = url;
+  a.download = `respaldo-farmacia-${fecha}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('✅ Respaldo exportado');
+}
+
+function importarRespaldo(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.products || !data.sales) {
+        showToast('❌ Archivo inválido — no es un respaldo válido');
+        input.value = '';
+        return;
+      }
+      const totalProd = data.products.length;
+      const totalVentas = data.sales.length;
+      if (!confirm(
+        `¿Importar este respaldo?\n\n` +
+        `📦 ${totalProd} productos\n` +
+        `🧾 ${totalVentas} ventas\n` +
+        (data.farmacia ? `🏪 ${data.farmacia}\n` : '') +
+        (data.fecha ? `📅 ${new Date(data.fecha).toLocaleDateString('es-MX')}\n` : '') +
+        `\n⚠️ Esto reemplazará el inventario y las ventas actuales.`
+      )) { input.value = ''; return; }
+      products = data.products;
+      sales    = data.sales;
+      save('products', products);
+      save('sales', sales);
+      renderInventory();
+      renderSales();
+      renderTodaySales();
+      showToast(`✅ Respaldo importado: ${totalProd} productos, ${totalVentas} ventas`);
+    } catch(err) {
+      showToast('❌ Error al leer el archivo');
+    }
+    input.value = '';
+  };
+  reader.readAsText(file);
 }
 
 function exportSalesExcel() {
@@ -3512,6 +3782,89 @@ fixIOSHeight();
 
 // ===== START =====
 init();
+GDrive.init();
+</script>
+
+<!-- ===== GOOGLE DRIVE MODAL ===== -->
+<div id="gdrive-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.55);align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:20px;padding:28px 24px;max-width:400px;width:92%;box-shadow:0 8px 40px rgba(0,0,0,0.22);position:relative;">
+    <button onclick="document.getElementById('gdrive-modal').style.display='none'" style="position:absolute;top:14px;right:16px;background:none;border:none;font-size:22px;cursor:pointer;color:#9ca3af;">✕</button>
+    <h2 style="font-size:18px;font-weight:800;color:#1e2340;margin-bottom:4px;">☁ Google Drive Sync</h2>
+    <p style="font-size:12px;color:#6b7280;margin-bottom:16px;">Comparte inventario y ventas entre dispositivos en tiempo real.</p>
+
+    <div style="background:#f4f5f9;border-radius:12px;padding:14px;margin-bottom:16px;">
+      <p style="font-size:11px;font-weight:700;color:#4f6ef7;margin-bottom:6px;">📋 Pasos para configurar:</p>
+      <ol style="font-size:11px;color:#374151;padding-left:18px;line-height:1.7;margin:0">
+        <li>Ve a <strong>console.cloud.google.com</strong></li>
+        <li>Crea un proyecto y habilita <strong>Drive API</strong></li>
+        <li>En "Credenciales" crea un <strong>OAuth 2.0 Client ID</strong></li>
+        <li>Agrega tu dominio (GitHub Pages) a orígenes autorizados</li>
+        <li>Pega el Client ID aquí abajo</li>
+      </ol>
+    </div>
+
+    <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:6px;">Google OAuth Client ID</label>
+    <input id="gdrive-client-id-input" type="text" placeholder="xxxxxx.apps.googleusercontent.com"
+      style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:12px;box-sizing:border-box;margin-bottom:14px;font-family:monospace;">
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button onclick="gdriveConnect()" id="gdrive-connect-btn"
+        style="flex:1;background:#4f6ef7;color:#fff;border:none;border-radius:10px;padding:11px 16px;font-size:13px;font-weight:700;cursor:pointer;min-width:120px;">
+        Conectar a Drive
+      </button>
+      <button onclick="gdriveDisconnect()" id="gdrive-disconnect-btn"
+        style="flex:1;background:#ef4444;color:#fff;border:none;border-radius:10px;padding:11px 16px;font-size:13px;font-weight:700;cursor:pointer;min-width:120px;display:none;">
+        Desconectar
+      </button>
+      <button onclick="GDrive.syncNow('both')" 
+        style="background:#22c55e;color:#fff;border:none;border-radius:10px;padding:11px 14px;font-size:13px;font-weight:700;cursor:pointer;">
+        🔄 Sync
+      </button>
+    </div>
+
+    <div id="gdrive-modal-status" style="margin-top:12px;font-size:12px;color:#6b7280;text-align:center;min-height:18px;"></div>
+
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid #e5e7eb;">
+      <p style="font-size:11px;color:#9ca3af;text-align:center;">
+        Los datos se guardan en <strong>farmacia-ire-db.json</strong> en tu Google Drive personal.<br>
+        Todos los dispositivos conectados se sincronizan automáticamente cada 30 segundos.
+      </p>
+    </div>
+  </div>
+</div>
+
+<script>
+function showGDriveModal() {
+  const modal = document.getElementById('gdrive-modal');
+  modal.style.display = 'flex';
+  const settings = GDrive.loadSettings();
+  document.getElementById('gdrive-client-id-input').value = settings.clientId || '';
+  updateGDriveModalButtons();
+}
+
+function updateGDriveModalButtons() {
+  const connected = GDrive.isEnabled();
+  document.getElementById('gdrive-connect-btn').style.display = connected ? 'none' : 'flex';
+  document.getElementById('gdrive-disconnect-btn').style.display = connected ? 'flex' : 'none';
+}
+
+async function gdriveConnect() {
+  const clientId = document.getElementById('gdrive-client-id-input').value.trim();
+  if (!clientId) {
+    document.getElementById('gdrive-modal-status').textContent = '⚠ Ingresa un Client ID válido';
+    return;
+  }
+  document.getElementById('gdrive-modal-status').textContent = 'Conectando…';
+  const ok = await GDrive.connect(clientId);
+  document.getElementById('gdrive-modal-status').textContent = ok ? '✅ Conectado correctamente' : '❌ Error al conectar';
+  updateGDriveModalButtons();
+}
+
+function gdriveDisconnect() {
+  GDrive.disconnect();
+  document.getElementById('gdrive-modal-status').textContent = 'Desconectado de Google Drive';
+  updateGDriveModalButtons();
+}
 </script>
 
 <script>
