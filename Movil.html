@@ -2074,9 +2074,10 @@ function confirmedSale() {
   const recv = parseFloat(document.getElementById('cart-received').value)||0;
 
   // Discount stock
+  const saleTs = Date.now();
   cart.forEach(item => {
-    const prod = products.find(p => p.id === item.id);
-    if (prod) prod.stock = Math.max(0, prod.stock - item.qty);
+    const prod = products.find(p => String(p.id) === String(item.id));
+    if (prod) { prod.stock = Math.max(0, prod.stock - item.qty); prod._ts = saleTs; }
   });
   save('products', products);
 
