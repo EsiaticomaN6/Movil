@@ -13,6 +13,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 :root {
   --navy: #1a1f3a;
@@ -60,6 +61,11 @@ body {
   padding-top: env(safe-area-inset-top);
   padding-top: constant(safe-area-inset-top);
 }
+
+/* ========== GOOGLE DRIVE FAB ========== */
+#gdrive-fab:hover { box-shadow: 0 6px 24px rgba(79,110,247,0.22); border-color: #4f6ef7; }
+#gdrive-sync-btn { transition: transform 0.3s ease; user-select: none; }
+#gdrive-sync-btn:hover { transform: scale(1.15); }
 
 /* ========== LOGIN SCREEN ========== */
 #login-screen {
@@ -886,28 +892,6 @@ body {
 #sc-photo-label{display:inline-flex;align-items:center;gap:8px;
   background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.15);
   border-radius:10px;padding:9px 16px;cursor:pointer;color:#fff;font-size:13px;font-weight:700;}
-
-/* ── Google Drive Sync ── */
-#drive-btn{
-  display:flex;align-items:center;gap:8px;width:100%;margin-top:8px;
-  padding:9px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.15);
-  background:rgba(255,255,255,.06);cursor:pointer;font-family:inherit;
-  font-size:12px;font-weight:600;color:rgba(255,255,255,.8);
-  transition:background .15s;text-align:left;
-}
-#drive-btn:hover{background:rgba(255,255,255,.12)}
-#drive-icon{width:16px;height:16px;flex-shrink:0}
-#drive-status{
-  display:flex;align-items:center;gap:5px;font-size:10px;
-  color:rgba(255,255,255,.4);margin-top:4px;padding:0 4px;min-height:14px;
-}
-#drive-dot{width:6px;height:6px;border-radius:50%;background:#888;flex-shrink:0;transition:background .3s}
-#drive-dot.ok{background:#4ade80}
-#drive-dot.syncing{background:#fbbf24;animation:pulse-dot .8s infinite}
-#drive-dot.error{background:#f87171}
-@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.3}}
-#drive-status-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
-
 </style>
 </head>
 <body>
@@ -984,22 +968,11 @@ body {
     <div class="nav-item" data-page="config" onclick="navigate('config',this)">
       <span class="nav-icon">⚙️</span> Configuración
     </div>
-  <!-- Google Drive Sync -->
-  <div style="padding:8px 12px 12px;border-top:1px solid rgba(255,255,255,.08);margin-top:auto">
-    <button id="drive-btn" onclick="driveConnect()"
-      style="display:flex;align-items:center;gap:8px;width:100%;padding:9px 12px;
-             border-radius:8px;border:1px solid rgba(255,255,255,.15);
-             background:rgba(255,255,255,.06);cursor:pointer;font-family:inherit;
-             font-size:12px;font-weight:600;color:rgba(255,255,255,.8);
-             transition:background .15s;text-align:left">
-      <svg id="drive-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="width:16px;height:16px;flex-shrink:0;fill:currentColor;opacity:.9"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg>
-      <span id="drive-btn-label">Conectar Drive</span>
-      <span id="drive-dot" style="width:6px;height:6px;border-radius:50%;background:#888;flex-shrink:0;margin-left:auto"></span>
-    </button>
-    <div id="drive-status" style="display:none;align-items:center;gap:5px;font-size:10px;color:rgba(255,255,255,.4);margin-top:4px;padding:0 4px">
-      <span id="drive-status-text">—</span>
+    <div class="nav-item" onclick="showGDriveModal()" style="cursor:pointer;">
+      <span class="nav-icon">☁</span>
+      <span style="flex:1">Google Drive</span>
+      <span id="gdrive-nav-dot" style="width:8px;height:8px;border-radius:50%;background:#9ca3af;flex-shrink:0;margin-left:4px;"></span>
     </div>
-  </div>
   </div>
 
   <!-- Main column -->
@@ -1672,9 +1645,433 @@ body {
 <div class="toast" id="toast"></div>
 
 <script>
-// ===== DATA STORE (localStorage) =====
-function save(key, val) { localStorage.setItem('fire_'+key, JSON.stringify(val)); }
+// ===== GOOGLE DRIVE SYNC MODULE =====
+const GDrive = (() => {
+  const DB_FILENAME = 'farmacia-ire-db.json';
+  const SYNC_INTERVAL_MS = 60000; // 60 segundos
+  let _fileId = null;
+  let _syncTimer = null;
+  let _lastSyncTs = 0;
+  let _isSyncing = false;
+  let _enabled = false;
+  let _clientId = '';
+  let _tokenClient = null;
+  let _accessToken = null;
+
+  function setStatus(msg, type='info') {
+    // Actualizar punto de color en el menú lateral
+    const dot = document.getElementById('gdrive-nav-dot');
+    const colors = { info: '#4f6ef7', ok: '#22c55e', error: '#ef4444', warn: '#f97316' };
+    if (dot) dot.style.background = colors[type] || colors.info;
+    // Actualizar estado en el modal si está abierto
+    const modalStatus = document.getElementById('gdrive-modal-status');
+    if (modalStatus) modalStatus.textContent = msg;
+  }
+
+  function setSyncIcon(spinning) {
+    const dot = document.getElementById('gdrive-nav-dot');
+    if (!dot) return;
+    if (spinning) {
+      dot.style.background = '#4f6ef7';
+      dot.style.opacity = '0.5';
+    } else {
+      dot.style.opacity = '1';
+    }
+  }
+
+  function loadSettings() {
+    const s = localStorage.getItem('gdrive_settings');
+    return s ? JSON.parse(s) : { enabled: false, clientId: '', fileId: null };
+  }
+
+  function saveSettings(obj) {
+    localStorage.setItem('gdrive_settings', JSON.stringify(obj));
+  }
+
+  function getLocalSnapshot() {
+    const prods = load('products', []);
+    const salesData = load('sales', []);
+    const usersData = load('users', [{ id: 1, name: 'Administrador', role: 'admin', color: '#4f6ef7', password: '' }]);
+    const configData = load('config', { name: 'Farmacia IRE', iva: 0, currency: 'MXN', minstock: 5, autoprint: false, ticketmsg: '¡Gracias por su compra!' });
+    return {
+      ts: Date.now(),
+      version: 4,
+      // Formato universal compatible con iPad
+      products: prods.map(p => ({
+        id:       p.id       || '',
+        codigo:   p.barcode  || p.codigo || '',
+        nombre:   p.name     || p.nombre || '',
+        dept:     p.category || p.dept   || '',
+        lab:      p.brand    || p.lab    || '',
+        precio:   parseFloat(p.price || p.precio || 0),
+        mayoreo:  parseFloat(p.wholesale || p.mayoreo || 0),
+        costo:    parseFloat(p.cost  || p.costo  || 0),
+        stock:    parseInt(p.stock   || 0),
+        minStock: parseInt(p.minStock|| p.min_stock || 5),
+        maxStock: parseInt(p.maxStock|| p.max_stock || 100),
+        barcode:  p.barcode  || p.codigo || '',
+        vence:    p.expiry   || p.vence  || '',
+        unidad:   p.unit     || p.unidad || 'Pieza',
+        desc:     p.description || p.desc || '',
+        // Campos originales del móvil (para que el móvil también los lea)
+        name:     p.name     || p.nombre || '',
+        price:    parseFloat(p.price || p.precio || 0),
+        category: p.category || p.dept   || '',
+        brand:    p.brand    || p.lab    || ''
+      })),
+      sales: salesData.map(s => ({
+        id:    s.id    || '',
+        folio: s.folio || s.id || '',
+        fecha: s.date  || s.fecha || new Date().toISOString(),
+        date:  s.date  || s.fecha || new Date().toISOString(),
+        items: s.items || s.products || [],
+        total: parseFloat(s.total || 0),
+        pago:  s.payment || s.pago || 'efectivo',
+        payment: s.payment || s.pago || 'efectivo',
+        cambio:parseFloat(s.change || s.cambio || 0),
+        cajero:s.user  || s.cajero || 'Administrador',
+        user:  s.user  || s.cajero || 'Administrador',
+        cliente: s.client || s.cliente || ''
+      })),
+      usuarios: usersData.map(u => ({
+        id:     String(u.id || ''),
+        nombre: u.name || u.nombre || '',
+        name:   u.name || u.nombre || '',
+        rol:    u.role === 'admin' ? 'admin' : 'vendedor',
+        role:   u.role || 'vendedor',
+        pass:   u.password || u.pass || '',
+        password: u.password || u.pass || '',
+        color:  u.color || '#4f6ef7',
+        activo: true
+      })),
+      config: {
+        nombre:   configData.name    || configData.nombre  || 'Farmacia IRE',
+        name:     configData.name    || configData.nombre  || 'Farmacia IRE',
+        iva:      configData.iva     || 0,
+        moneda:   configData.currency|| configData.moneda  || '$',
+        currency: configData.currency|| configData.moneda  || 'MXN',
+        minStock: configData.minstock|| configData.minStock|| 5,
+        minstock: configData.minstock|| configData.minStock|| 5,
+        leyenda:  configData.ticketmsg || configData.leyenda || '¡Gracias por su compra!',
+        ticketmsg:configData.ticketmsg || configData.leyenda || '¡Gracias por su compra!'
+      },
+      ctrs: { skuN: prods.length+1, saleN: salesData.length+1, cliN:1, entN:1, userN: usersData.length+1 },
+      // También guardar en formato original del móvil
+      users: usersData,
+      clientes: [], entradas: [], cortes: []
+    };
+  }
+
+  function applyRemoteSnapshot(data) {
+    if (!data) return false;
+    const version = data.version || 0;
+    if (version < 2) return false;
+
+    // Productos — aceptar tanto formato móvil como iPad
+    if (data.products && data.products.length > 0) {
+      products = data.products.map(p => ({
+        id:          p.id || '',
+        name:        p.name    || p.nombre   || '',
+        barcode:     p.barcode || p.codigo   || '',
+        price:       parseFloat(p.price  || p.precio  || 0),
+        cost:        parseFloat(p.cost   || p.costo   || 0),
+        wholesale:   parseFloat(p.wholesale || p.mayoreo || 0),
+        stock:       parseInt(p.stock   || 0),
+        minStock:    parseInt(p.minStock || 5),
+        category:    p.category || p.dept || '',
+        brand:       p.brand    || p.lab  || '',
+        description: p.description || p.desc || '',
+        unit:        p.unit   || p.unidad || 'Pieza',
+        expiry:      p.expiry || p.vence  || ''
+      }));
+      save('products', products);
+    }
+    if (data.sales && data.sales.length > 0) {
+      sales = data.sales.map(s => ({
+        id:      s.id    || '',
+        date:    s.date  || s.fecha || new Date().toISOString(),
+        items:   s.items || [],
+        total:   parseFloat(s.total || 0),
+        payment: s.payment || s.pago || 'efectivo',
+        change:  parseFloat(s.change || s.cambio || 0),
+        user:    s.user  || s.cajero || 'Administrador'
+      }));
+      save('sales', sales);
+    }
+    // usuarios — formato móvil
+    const usersData = data.users || data.usuarios;
+    if (usersData && usersData.length > 0) {
+      users = usersData.map(u => ({
+        id:       u.id,
+        name:     u.name    || u.nombre   || '',
+        role:     u.role    || (u.rol==='admin'?'admin':'employee'),
+        color:    u.color   || '#4f6ef7',
+        password: u.password|| u.pass     || ''
+      }));
+      save('users', users);
+    }
+    if (data.config) {
+      config = {
+        ...config,
+        name:      data.config.name     || data.config.nombre  || config.name,
+        iva:       data.config.iva      ?? config.iva,
+        currency:  data.config.currency || data.config.moneda  || config.currency,
+        minstock:  data.config.minstock || data.config.minStock|| config.minstock,
+        ticketmsg: data.config.ticketmsg|| data.config.leyenda || config.ticketmsg
+      };
+      save('config', config);
+    }
+    return true;
+  }
+
+  async function fetchWithToken(url, opts = {}) {
+    if (!_accessToken) throw new Error('Sin token');
+    const headers = { 'Authorization': 'Bearer ' + _accessToken, ...(opts.headers || {}) };
+    const res = await fetch(url, { ...opts, headers });
+    if (res.status === 401) { _accessToken = null; throw new Error('Token expirado'); }
+    return res;
+  }
+
+  async function findOrCreateFile() {
+    const settings = loadSettings();
+    if (settings.fileId) { _fileId = settings.fileId; return _fileId; }
+    // Buscar archivo existente
+    const q = `name='${DB_FILENAME}' and mimeType='application/json' and trashed=false`;
+    const searchRes = await fetchWithToken(
+      `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name,modifiedTime)`,
+      { method: 'GET' }
+    );
+    const searchData = await searchRes.json();
+    if (searchData.files && searchData.files.length > 0) {
+      _fileId = searchData.files[0].id;
+    } else {
+      // Crear archivo nuevo
+      const meta = { name: DB_FILENAME, mimeType: 'application/json' };
+      const body = JSON.stringify(getLocalSnapshot());
+      const boundary = '-------farmaciaIRE';
+      const multipart = `--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(meta)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${body}\r\n--${boundary}--`;
+      const createRes = await fetchWithToken(
+        'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
+        { method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body: multipart }
+      );
+      const createData = await createRes.json();
+      _fileId = createData.id;
+    }
+    const s = loadSettings();
+    s.fileId = _fileId;
+    saveSettings(s);
+    return _fileId;
+  }
+
+  async function downloadFromDrive() {
+    await findOrCreateFile();
+    const res = await fetchWithToken(`https://www.googleapis.com/drive/v3/files/${_fileId}?alt=media`);
+    if (!res.ok) throw new Error('Error descargando de Drive');
+    return await res.json();
+  }
+
+  async function uploadToDrive(snapshot) {
+    await findOrCreateFile();
+    const body = JSON.stringify(snapshot);
+    const res = await fetchWithToken(
+      `https://www.googleapis.com/upload/drive/v3/files/${_fileId}?uploadType=media`,
+      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body }
+    );
+    if (!res.ok) throw new Error('Error subiendo a Drive');
+  }
+
+  /* ── Merge helpers ── */
+  function mergeById(local, remote) {
+    const map = {};
+    (remote || []).forEach(r => { map[r.id] = {...r}; });
+    (local  || []).forEach(l => {
+      if (!map[l.id]) {
+        map[l.id] = {...l};
+      } else {
+        const rTs = new Date(map[l.id].updatedAt || map[l.id].date || map[l.id].fecha || 0).getTime();
+        const lTs = new Date(l.updatedAt || l.date || l.fecha || 0).getTime();
+        if (lTs >= rTs) map[l.id] = {...l};
+      }
+    });
+    return Object.values(map);
+  }
+
+  function mergeSnaps(local, remote) {
+    return {
+      ts:       Math.max(local.ts, remote.ts || 0),
+      version:  4,
+      products: mergeById(local.products, remote.products),
+      sales:    mergeById(local.sales,    remote.sales),
+      usuarios: mergeById(local.usuarios || local.users || [], remote.usuarios || remote.users || []),
+      users:    mergeById(local.users || local.usuarios || [], remote.users || remote.usuarios || []),
+      clientes: mergeById(local.clientes || [], remote.clientes || []),
+      entradas: mergeById(local.entradas || [], remote.entradas || []),
+      cortes:   mergeById(local.cortes   || [], remote.cortes   || []),
+      config:   remote.ts > local.ts ? {...local.config, ...remote.config} : local.config,
+      ctrs:     remote.ctrs || local.ctrs
+    };
+  }
+
+  async function syncNow(direction = 'both') {
+    if (!_enabled || _isSyncing) return;
+    // Si no hay token, intentar renovar silenciosamente
+    if (!_accessToken) {
+      try {
+        await requestToken();
+      } catch(e) {
+        console.warn('[Drive móvil] No se pudo renovar token:', e.message);
+        setStatus('☁ Reconecta Drive', 'warn');
+        return;
+      }
+    }
+    _isSyncing = true;
+    setSyncIcon(true);
+    try {
+      if (direction === 'upload') {
+        await uploadToDrive(getLocalSnapshot());
+        _lastSyncTs = Date.now();
+        setStatus('☁ Sync: subido', 'ok');
+      } else {
+        // MERGE BIDIRECCIONAL
+        const remote = await downloadFromDrive();
+        const local  = getLocalSnapshot();
+        const merged = mergeSnaps(local, remote);
+
+        console.log('[GDrive móvil merge] local:', local.products.length, 'p/', local.sales.length,
+          'v | remote:', (remote.products||[]).length, 'p/', (remote.sales||[]).length,
+          'v | merged:', merged.products.length, 'p/', merged.sales.length, 'v');
+
+        // Aplicar merge localmente
+        applyRemoteSnapshot(merged);
+        renderAll();
+        // Subir merge a Drive
+        await uploadToDrive(merged);
+        setStatus('☁ Sync: ' + merged.products.length + 'p/' + merged.sales.length + 'v', 'ok');
+        _lastSyncTs = Date.now();
+      }
+    } catch (e) {
+      console.error('GDrive sync error', e);
+      setStatus('☁ Sin sincronizar', 'warn');
+    } finally {
+      _isSyncing = false;
+      setSyncIcon(false);
+    }
+  }
+
+  function startAutoSync() {
+    if (_syncTimer) clearInterval(_syncTimer);
+    _syncTimer = setInterval(() => syncNow('both'), SYNC_INTERVAL_MS);
+  }
+
+  function stopAutoSync() {
+    if (_syncTimer) clearInterval(_syncTimer);
+    _syncTimer = null;
+  }
+
+  function requestToken() {
+    return new Promise((resolve, reject) => {
+      if (!window.google || !window.google.accounts) { reject(new Error('Google SDK no cargado')); return; }
+      if (!_clientId) { reject(new Error('Sin Client ID')); return; }
+      if (!_tokenClient) {
+        _tokenClient = google.accounts.oauth2.initTokenClient({
+          client_id: _clientId,
+          scope: 'https://www.googleapis.com/auth/drive.file',
+          callback: (resp) => {
+            if (resp.error) { reject(new Error(resp.error)); return; }
+            _accessToken = resp.access_token;
+            resolve(_accessToken);
+          }
+        });
+      }
+      _tokenClient.requestAccessToken({ prompt: _accessToken ? '' : 'consent' });
+    });
+  }
+
+  async function connect(clientId) {
+    _clientId = clientId;
+    _tokenClient = null; // reset para nuevo clientId
+    try {
+      setStatus('Conectando…', 'info');
+      await requestToken();
+      _enabled = true;
+      _fileId = null; // reset para buscar/crear archivo
+      const s = loadSettings();
+      s.enabled = true;
+      s.clientId = clientId;
+      s.fileId = null;
+      saveSettings(s);
+      await syncNow('both');
+      startAutoSync();
+      setStatus('☁ Conectado', 'ok');
+      return true;
+    } catch(e) {
+      setStatus('Error: ' + e.message, 'error');
+      return false;
+    }
+  }
+
+  function disconnect() {
+    _enabled = false;
+    _accessToken = null;
+    _fileId = null;
+    stopAutoSync();
+    const s = loadSettings();
+    s.enabled = false;
+    s.fileId = null;
+    saveSettings(s);
+    setStatus('Desconectado', 'warn');
+  }
+
+  async function init() {
+    const settings = loadSettings();
+    _clientId = settings.clientId || '';
+    if (!settings.enabled || !_clientId) return;
+    // Intentar reconexión silenciosa
+    setStatus('Reconectando…', 'info');
+    try {
+      await requestToken();
+      _enabled = true;
+      _fileId = settings.fileId || null;
+      await syncNow('both');
+      startAutoSync();
+      setStatus('☁ Conectado', 'ok');
+    } catch(e) {
+      setStatus('☁ Sin conexión a Drive', 'warn');
+    }
+  }
+
+  function saveAndSync(key, val) {
+    localStorage.setItem('fire_'+key, JSON.stringify(val));
+    if (_enabled) {
+      setTimeout(() => syncNow('upload'), 500);
+    }
+  }
+
+  return { init, connect, disconnect, syncNow, saveAndSync, loadSettings, isEnabled: () => _enabled };
+})();
+
+// ===== DATA STORE (localStorage + GDrive) =====
+function save(key, val) {
+  // Marcar updatedAt en cada registro al guardar
+  if (key === 'products' && Array.isArray(val)) {
+    const now = new Date().toISOString();
+    val.forEach(p => { p.updatedAt = now; });
+  }
+  if (key === 'sales' && Array.isArray(val)) {
+    val.forEach(s => { if(!s.updatedAt) s.updatedAt = s.date || new Date().toISOString(); });
+  }
+  GDrive.saveAndSync(key, val);
+}
 function load(key, def) { const v = localStorage.getItem('fire_'+key); return v ? JSON.parse(v) : def; }
+
+function renderAll() {
+  // Refrescar vistas activas tras sync remota
+  try {
+    if (typeof renderInventory === 'function') renderInventory();
+    if (typeof renderSales === 'function') renderSales();
+    if (typeof renderUsers === 'function') renderUsers();
+  } catch(e) {}
+}
 
 let users = load('users', [
   { id: 1, name: 'Administrador', role: 'admin', color: '#4f6ef7', password: '' }
@@ -1890,15 +2287,14 @@ function searchProducts(q) {
         <div class="product-row-price">$${(p.price||0).toFixed(2)}</div>
         <div class="product-row-stock">Stock: ${p.stock}</div>
       </div>
-      <button class="add-btn" onclick="addToCart('${p.id}')" ${p.stock<=0?'disabled style="background:var(--text3)"':''}>
+      <button class="add-btn" onclick="addToCart(${p.id})" ${p.stock<=0?'disabled style="background:var(--text3)"':''}>
         ${p.stock<=0?'Sin stock':'+'}
       </button>
     </div>`).join('');
 }
 
 function addToCart(pid) {
-  // Coerce id — may be string from Drive sync or number from local
-  const prod = products.find(p => String(p.id) === String(pid));
+  const prod = products.find(p => p.id === pid);
   if (!prod || prod.stock <= 0) return;
   const existing = cart.find(c => c.id === pid);
   if (existing) {
@@ -2074,10 +2470,9 @@ function confirmedSale() {
   const recv = parseFloat(document.getElementById('cart-received').value)||0;
 
   // Discount stock
-  const saleTs = Date.now();
   cart.forEach(item => {
-    const prod = products.find(p => String(p.id) === String(item.id));
-    if (prod) { prod.stock = Math.max(0, prod.stock - item.qty); prod._ts = saleTs; }
+    const prod = products.find(p => p.id === item.id);
+    if (prod) prod.stock = Math.max(0, prod.stock - item.qty);
   });
   save('products', products);
 
@@ -2303,8 +2698,8 @@ function filterInventory() {
       <td style="font-family:'JetBrains Mono',monospace;font-size:11px;white-space:nowrap">${p.expiry||'—'}</td>
       <td><span class="stock-badge ${ss}">${sv}</span></td>
       <td style="white-space:nowrap">
-        <button onclick="openEditProduct('${p.id}')" style="background:none;border:none;font-size:17px;cursor:pointer;padding:3px 5px;border-radius:6px;transition:background .1s" title="Editar" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background='none'">✏️</button>
-        <button onclick="ctxTargetId='${p.id}';ctxDelete()" style="background:none;border:none;font-size:17px;cursor:pointer;padding:3px 5px;border-radius:6px;transition:background .1s" title="Eliminar" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='none'">🗑️</button>
+        <button onclick="openEditProduct(${p.id})" style="background:none;border:none;font-size:17px;cursor:pointer;padding:3px 5px;border-radius:6px;transition:background .1s" title="Editar" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background='none'">✏️</button>
+        <button onclick="ctxTargetId=${p.id};ctxDelete()" style="background:none;border:none;font-size:17px;cursor:pointer;padding:3px 5px;border-radius:6px;transition:background .1s" title="Eliminar" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='none'">🗑️</button>
       </td>
     </tr>`;
   }).join('');
@@ -2527,12 +2922,11 @@ function ctxEdit() {
 
 function ctxAddStock() {
   document.getElementById('ctx-menu').classList.remove('active');
-  const prod = products.find(p => String(p.id) === String(ctxTargetId));
+  const prod = products.find(p => p.id === ctxTargetId);
   if (!prod) return;
   const qty = prompt(`¿Cuántas unidades agregar a "${prod.name}"? (stock actual: ${prod.stock})`);
   if (!qty || isNaN(qty)) return;
   prod.stock += parseInt(qty);
-  prod._ts = Date.now();
   save('products', products);
   renderInventory();
   showToast(`📦 +${qty} unidades a ${prod.name}`);
@@ -2540,8 +2934,8 @@ function ctxAddStock() {
 
 function ctxViewHistory() {
   document.getElementById('ctx-menu').classList.remove('active');
-  const prod = products.find(p => String(p.id) === String(ctxTargetId));
-  const related = sales.filter(s => s.items.some(i => String(i.id) === String(ctxTargetId)));
+  const prod = products.find(p => p.id === ctxTargetId);
+  const related = sales.filter(s => s.items.some(i => i.id === ctxTargetId));
   const info = related.length
     ? related.map(s=>`${s.ticketNum} · ${new Date(s.date).toLocaleDateString('es-MX')} · -${s.items.find(i=>i.id===ctxTargetId).qty}`).join('\n')
     : 'Sin movimientos registrados';
@@ -2550,10 +2944,10 @@ function ctxViewHistory() {
 
 function ctxDelete() {
   document.getElementById('ctx-menu').classList.remove('active');
-  const prod = products.find(p => String(p.id) === String(ctxTargetId));
+  const prod = products.find(p => p.id === ctxTargetId);
   if (!prod) return;
   if (confirm(`¿Eliminar "${prod.name}"? Esta acción no se puede deshacer.`)) {
-    products = products.filter(p => String(p.id) !== String(ctxTargetId));
+    products = products.filter(p => p.id !== ctxTargetId);
     save('products', products);
     renderInventory();
     showToast('🗑️ Producto eliminado');
@@ -2592,8 +2986,8 @@ function openAddProduct() {
 }
 
 function openEditProduct(id) {
-  editingProductId = String(id);
-  const p = products.find(pr => String(pr.id) === String(id));
+  editingProductId = id;
+  const p = products.find(pr => pr.id === id);
   if (!p) return;
   document.getElementById('pf-title').textContent = '✏️ Editar Producto';
   document.getElementById('pf-sku').value           = p.sku || genSKU(p);
@@ -2627,7 +3021,6 @@ function saveProduct() {
   if (!name || price <= 0) { showToast('⚠️ Nombre y precio son obligatorios'); return; }
   const cost = parseFloat(document.getElementById('pf-cost').value)||0;
   const data = {
-    _ts: Date.now(),
     barcode:        document.getElementById('pf-barcode').value.trim(),
     name,
     desc:           document.getElementById('pf-desc').value.trim(),
@@ -2643,7 +3036,7 @@ function saveProduct() {
     expiry:         document.getElementById('pf-expiry').value,
   };
   if (editingProductId) {
-    const idx = products.findIndex(p => String(p.id) === String(editingProductId));
+    const idx = products.findIndex(p => p.id === editingProductId);
     products[idx] = { ...products[idx], ...data };
   } else {
     data.id = Date.now();
@@ -2718,7 +3111,7 @@ function consultaSearch(q) {
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
           <div style="font-size:22px;font-weight:800;color:var(--accent)">${fmt(p.price||0)}</div>
           <button
-            onclick="addToCartFromConsulta('${p.id}')"
+            onclick="addToCartFromConsulta(${p.id})"
             ${p.stock<=0 ? 'disabled' : ''}
             style="background:${p.stock<=0?'var(--text3)':'var(--green)'};color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:inherit;font-size:13px;font-weight:700;cursor:${p.stock<=0?'not-allowed':'pointer'};white-space:nowrap;transition:filter .15s"
           >🛒 ${p.stock<=0?'Sin stock':'+ Al ticket'}</button>
@@ -2729,9 +3122,9 @@ function consultaSearch(q) {
 }
 
 function addToCartFromConsulta(pid) {
-  addToCart(String(pid));
+  addToCart(pid);
   // Show cart count feedback
-  const btn = document.querySelector(`[onclick="addToCartFromConsulta('${pid}')"]`) || document.querySelector(`[onclick="addToCartFromConsulta(${pid})"]`);
+  const btn = document.querySelector(`[onclick="addToCartFromConsulta(${pid})"]`);
   if (btn) {
     btn.textContent = '✅ Agregado';
     setTimeout(() => { btn.textContent = '🛒 + Al ticket'; }, 1500);
@@ -3566,6 +3959,91 @@ fixIOSHeight();
 
 // ===== START =====
 init();
+GDrive.init();
+</script>
+
+<!-- ===== GOOGLE DRIVE MODAL ===== -->
+<div id="gdrive-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.55);align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:20px;padding:28px 24px;max-width:400px;width:92%;box-shadow:0 8px 40px rgba(0,0,0,0.22);position:relative;">
+    <button onclick="document.getElementById('gdrive-modal').style.display='none'" style="position:absolute;top:14px;right:16px;background:none;border:none;font-size:22px;cursor:pointer;color:#9ca3af;">✕</button>
+    <h2 style="font-size:18px;font-weight:800;color:#1e2340;margin-bottom:4px;">☁ Google Drive Sync</h2>
+    <p style="font-size:12px;color:#6b7280;margin-bottom:16px;">Comparte inventario y ventas entre dispositivos en tiempo real.</p>
+
+    <div style="background:#f4f5f9;border-radius:12px;padding:14px;margin-bottom:16px;">
+      <p style="font-size:11px;font-weight:700;color:#4f6ef7;margin-bottom:6px;">📋 Pasos para configurar:</p>
+      <ol style="font-size:11px;color:#374151;padding-left:18px;line-height:1.7;margin:0">
+        <li>Ve a <strong>console.cloud.google.com</strong></li>
+        <li>Crea un proyecto y habilita <strong>Drive API</strong></li>
+        <li>En "Credenciales" crea un <strong>OAuth 2.0 Client ID</strong></li>
+        <li>Agrega tu dominio (GitHub Pages) a orígenes autorizados</li>
+        <li>Pega el Client ID aquí abajo</li>
+      </ol>
+    </div>
+
+    <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:6px;">Google OAuth Client ID</label>
+    <input id="gdrive-client-id-input" type="text" placeholder="xxxxxx.apps.googleusercontent.com"
+      style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:12px;box-sizing:border-box;margin-bottom:14px;font-family:monospace;">
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button onclick="gdriveConnect()" id="gdrive-connect-btn"
+        style="flex:1;background:#4f6ef7;color:#fff;border:none;border-radius:10px;padding:11px 16px;font-size:13px;font-weight:700;cursor:pointer;min-width:120px;">
+        Conectar a Drive
+      </button>
+      <button onclick="gdriveDisconnect()" id="gdrive-disconnect-btn"
+        style="flex:1;background:#ef4444;color:#fff;border:none;border-radius:10px;padding:11px 16px;font-size:13px;font-weight:700;cursor:pointer;min-width:120px;display:none;">
+        Desconectar
+      </button>
+      <button onclick="GDrive.syncNow('both')" 
+        style="background:#22c55e;color:#fff;border:none;border-radius:10px;padding:11px 14px;font-size:13px;font-weight:700;cursor:pointer;">
+        🔄 Sync
+      </button>
+    </div>
+
+    <div id="gdrive-modal-status" style="margin-top:12px;font-size:12px;color:#6b7280;text-align:center;min-height:18px;"></div>
+
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid #e5e7eb;">
+      <p style="font-size:11px;color:#9ca3af;text-align:center;">
+        Los datos se guardan en <strong>farmacia-ire-db.json</strong> en tu Google Drive personal.<br>
+        Todos los dispositivos conectados se sincronizan automáticamente cada 30 segundos.
+      </p>
+    </div>
+  </div>
+</div>
+
+<script>
+function showGDriveModal() {
+  const modal = document.getElementById('gdrive-modal');
+  modal.style.display = 'flex';
+  const settings = GDrive.loadSettings();
+  document.getElementById('gdrive-client-id-input').value = settings.clientId || '';
+  const statusEl = document.getElementById('gdrive-modal-status');
+  if (statusEl) statusEl.textContent = GDrive.isEnabled() ? '✅ Conectado a Google Drive' : 'Sin conexión a Google Drive';
+  updateGDriveModalButtons();
+}
+
+function updateGDriveModalButtons() {
+  const connected = GDrive.isEnabled();
+  document.getElementById('gdrive-connect-btn').style.display = connected ? 'none' : 'flex';
+  document.getElementById('gdrive-disconnect-btn').style.display = connected ? 'flex' : 'none';
+}
+
+async function gdriveConnect() {
+  const clientId = document.getElementById('gdrive-client-id-input').value.trim();
+  if (!clientId) {
+    document.getElementById('gdrive-modal-status').textContent = '⚠ Ingresa un Client ID válido';
+    return;
+  }
+  document.getElementById('gdrive-modal-status').textContent = 'Conectando…';
+  const ok = await GDrive.connect(clientId);
+  document.getElementById('gdrive-modal-status').textContent = ok ? '✅ Conectado correctamente' : '❌ Error al conectar';
+  updateGDriveModalButtons();
+}
+
+function gdriveDisconnect() {
+  GDrive.disconnect();
+  document.getElementById('gdrive-modal-status').textContent = 'Desconectado de Google Drive';
+  updateGDriveModalButtons();
+}
 </script>
 
 <script>
@@ -3602,290 +4080,6 @@ if ('serviceWorker' in navigator) {
   const swUrl = URL.createObjectURL(blob);
   navigator.serviceWorker.register(swUrl).catch(() => {});
 }
-</script>
-
-<script>
-// ═══════════════════════════════════════════════════════
-// GOOGLE DRIVE SYNC
-// ═══════════════════════════════════════════════════════
-// SETUP: https://console.cloud.google.com/
-//  1. Crear proyecto → APIs & Services → Drive API → Enable
-//  2. OAuth consent screen → External → Add scopes: drive.appdata
-//  3. Credenciales → Crear ID de cliente OAuth → Aplicación web
-//  4. Authorized origins: tu dominio (ej. https://esiaticoman6.github.io)
-//  5. Pega tu Client ID abajo:
-const DRIVE_CLIENT_ID = '866437613780-sg0ttkt4mtn6h0er2cdjf1vf1tma27b1.apps.googleusercontent.com';
-const DRIVE_SCOPE     = 'https://www.googleapis.com/auth/drive.appdata';
-const DRIVE_FILENAME  = 'farmacia-ire-sync.json';
-
-let _driveToken  = null;
-let _driveFileId = null;
-let _syncTimer   = null;
-let _driveReady  = false;
-let _lastSyncTs  = 0;
-let _syncPending = false;
-
-(function loadGapi() {
-  const s = document.createElement('script');
-  s.src = 'https://accounts.google.com/gsi/client';
-  s.onload = () => { _driveReady = true; _driveRestoreToken(); };
-  document.head.appendChild(s);
-})();
-
-function _driveRestoreToken() {
-  try {
-    const t = JSON.parse(localStorage.getItem('fire_drive_token') || 'null');
-    if (t && t.expires > Date.now()) {
-      _driveToken = t.token;
-      _driveUI(true);
-      _drivePull();
-    }
-  } catch(e) {}
-}
-
-function driveConnect() {
-  if (_driveToken) { _drivePull(); return; }
-  if (!_driveReady) { showToast('⏳ Cargando, intenta en un momento'); return; }
-  if (DRIVE_CLIENT_ID === 'PASTE_YOUR_GOOGLE_CLIENT_ID_HERE') {
-    alert('⚙️ Configura tu Google Client ID.\n\n1. Ve a console.cloud.google.com\n2. APIs → Drive API → Habilitar\n3. Credenciales → OAuth 2.0 → Aplicación web\n4. Pega el Client ID en el código (DRIVE_CLIENT_ID)');
-    return;
-  }
-  const client = google.accounts.oauth2.initTokenClient({
-    client_id: DRIVE_CLIENT_ID,
-    scope: DRIVE_SCOPE,
-    callback: (resp) => {
-      if (resp.error) { _driveSetStatus('error', resp.error); return; }
-      _driveToken = resp.access_token;
-      localStorage.setItem('fire_drive_token', JSON.stringify({
-        token: _driveToken,
-        expires: Date.now() + (resp.expires_in - 60) * 1000
-      }));
-      _driveUI(true);
-      _driveSetStatus('syncing', 'Conectando…');
-      _drivePull().then(() => _drivePush());
-    }
-  });
-  client.requestAccessToken({ prompt: '' });
-}
-
-function driveDisconnect() {
-  _driveToken = null; _driveFileId = null; _syncPending = false;
-  localStorage.removeItem('fire_drive_token');
-  _driveUI(false);
-}
-
-function _driveUI(connected) {
-  const lbl = document.getElementById('drive-btn-label');
-  const st  = document.getElementById('drive-status');
-  if (lbl) lbl.textContent = connected ? 'Drive conectado ✓' : 'Conectar Drive';
-  if (st)  st.style.display = connected ? 'flex' : 'none';
-  if (!connected) _driveSetStatus('', '');
-}
-
-function _driveSetStatus(state, msg) {
-  const dot  = document.getElementById('drive-dot');
-  const text = document.getElementById('drive-status-text');
-  const colors = { ok: '#4ade80', syncing: '#fbbf24', error: '#f87171', '': '#888' };
-  if (dot) { dot.style.background = colors[state] || '#888'; }
-  if (text) text.textContent = msg || '';
-}
-
-async function _driveGetFileId() {
-  if (_driveFileId) return _driveFileId;
-  const r = await fetch(
-    `https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name=%27${DRIVE_FILENAME}%27&fields=files(id)`,
-    { headers: { Authorization: 'Bearer ' + _driveToken } }
-  );
-  if (!r.ok) throw new Error('list ' + r.status);
-  const d = await r.json();
-  if (d.files && d.files.length) { _driveFileId = d.files[0].id; return _driveFileId; }
-  // Create new file
-  const cr = await fetch('https://www.googleapis.com/drive/v3/files', {
-    method: 'POST',
-    headers: { Authorization: 'Bearer ' + _driveToken, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: DRIVE_FILENAME, parents: ['appDataFolder'], mimeType: 'application/json' })
-  });
-  if (!cr.ok) throw new Error('create ' + cr.status);
-  const cj = await cr.json();
-  _driveFileId = cj.id;
-  return _driveFileId;
-}
-
-function _driveBuildPayload() {
-  return JSON.stringify({
-    _v: 2, _ts: Date.now(),
-    _device: config.name || 'Farmacia',
-    products, sales,
-    config: { ...config, logo: null },
-    users,
-    cortes: typeof cortes !== 'undefined' ? cortes : [],
-  });
-}
-
-async function _drivePush() {
-  if (!_driveToken) return;
-  _syncPending = false;
-  _driveSetStatus('syncing', 'Guardando…');
-  try {
-    const fid  = await _driveGetFileId();
-    const body = _driveBuildPayload();
-    const form = new FormData();
-    form.append('metadata', new Blob([JSON.stringify({ name: DRIVE_FILENAME, mimeType: 'application/json' })], { type: 'application/json' }));
-    form.append('file', new Blob([body], { type: 'application/json' }));
-    const r = await fetch(
-      `https://www.googleapis.com/upload/drive/v3/files/${fid}?uploadType=multipart`,
-      { method: 'PATCH', headers: { Authorization: 'Bearer ' + _driveToken }, body: form }
-    );
-    if (r.status === 401) { driveDisconnect(); return; }
-    if (!r.ok) throw new Error('upload ' + r.status);
-    _lastSyncTs = Date.now();
-    _driveSetStatus('ok', 'Sync ' + new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }));
-  } catch(e) {
-    console.error('Drive push:', e);
-    _driveSetStatus('error', 'Error al guardar');
-  }
-}
-
-async function _drivePull() {
-  if (!_driveToken) return;
-  _driveSetStatus('syncing', 'Revisando…');
-  try {
-    const fid = await _driveGetFileId();
-    const r   = await fetch(
-      `https://www.googleapis.com/drive/v3/files/${fid}?alt=media`,
-      { headers: { Authorization: 'Bearer ' + _driveToken } }
-    );
-    if (r.status === 401) { driveDisconnect(); return; }
-    if (r.status === 404 || r.status === 204) { _driveSetStatus('ok', 'Primera vez'); return; }
-    if (!r.ok) throw new Error('download ' + r.status);
-    const txt = await r.text();
-    if (!txt || txt.length < 5) { _driveSetStatus('ok', 'Sin datos'); return; }
-    const d = JSON.parse(txt);
-    if (!d || !d._ts) { _driveSetStatus('ok', 'Archivo vacío'); return; }
-    _driveMerge(d);
-    _driveSetStatus('ok', 'Sync ' + new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }));
-  } catch(e) {
-    console.error('Drive pull:', e);
-    _driveSetStatus('error', 'Sin conexión');
-  }
-}
-
-function _driveMerge(remote) {
-  let changed = false;
-
-  // Si el remoto tiene _cleared, borrar datos locales también
-  if (remote._cleared) {
-    products = []; sales = [];
-    ['products','sales'].forEach(k =>
-      localStorage.setItem('fire_' + k, JSON.stringify(k==='products'?products:sales))
-    );
-    clearTimeout(_syncTimer); _syncPending = false;
-    if (typeof renderInventory  === 'function') renderInventory();
-    if (typeof renderSales      === 'function') renderSales();
-    if (typeof renderTodaySales === 'function') renderTodaySales();
-    if (typeof fillDeptList     === 'function') fillDeptList();
-    if (typeof showToast        === 'function') showToast('🗑 Datos borrados desde otro dispositivo');
-    return;
-  }
-
-  function mergeById(local, rem) {
-    if (!Array.isArray(rem) || !rem.length) return { arr: local, changed: false };
-    const map = new Map(local.map(x => [String(x.id), x]));
-    let upd = false;
-    rem.forEach(r => {
-      const key = String(r.id);
-      const l = map.get(key);
-      const rTs = r._ts || 0;
-      const lTs = l ? (l._ts || 0) : -1;
-      // Gana el más reciente. Si ambos son 0 (sin _ts), remoto gana solo si no existe local.
-      if (!l || rTs > lTs || (rTs === 0 && lTs === 0 && !l)) {
-        map.set(key, r); upd = true;
-      }
-    });
-    return { arr: Array.from(map.values()), changed: upd };
-  }
-
-  // Products
-  const pm = mergeById(products, remote.products);
-  if (pm.changed) { products = pm.arr; save('products', products); changed = true; }
-
-  // Sales — append only (never overwrite)
-  if (Array.isArray(remote.sales) && remote.sales.length) {
-    const have = new Set(sales.map(s => s.id));
-    const fresh = remote.sales.filter(s => !have.has(s.id));
-    if (fresh.length) {
-      sales = [...sales, ...fresh].sort((a, b) =>
-        new Date(b.fecha || b.date || 0) - new Date(a.fecha || a.date || 0)
-      );
-      save('sales', sales); changed = true;
-    }
-  }
-
-  // Config — take remote only if its timestamp is newer
-  if (remote.config && remote._ts > _lastSyncTs) {
-    const localLogo = config.logo;
-    config = { ...config, ...remote.config, logo: localLogo };
-    save('config', config); changed = true;
-  }
-
-  // Users
-  const um = mergeById(users, remote.users || []);
-  if (um.changed) { users = um.arr; save('users', users); changed = true; }
-
-  if (changed) {
-    if (typeof renderInventory  === 'function') renderInventory();
-    if (typeof renderSales      === 'function') renderSales();
-    if (typeof renderTodaySales === 'function') renderTodaySales();
-    if (typeof renderReports    === 'function') renderReports();
-    if (typeof fillDeptList     === 'function') fillDeptList();
-    // Actualizar resultados del modal de búsqueda si está abierto
-    const psModal = document.getElementById('product-search-modal');
-    const psInput = document.getElementById('ps-search');
-    if (psModal && psModal.classList.contains('active') && psInput && psInput.value.trim()) {
-      if (typeof searchProducts === 'function') searchProducts(psInput.value);
-    }
-    // sync silent (no toast)
-  }
-}
-
-// Hook: intercept save() calls to also push to Drive
-// Use a wrapper that calls localStorage directly to avoid infinite recursion
-const _driveObserveSave = (key, val) => {
-  if (_driveToken && ['products','sales','config','users'].includes(key)) {
-    _syncPending = true;
-    clearTimeout(_syncTimer);
-    _syncTimer = setTimeout(_drivePush, 3000);
-  }
-};
-// Patch: wrap the original save without redefining it
-(function() {
-  const _orig = save;
-  // Override only in this scope so _orig stays as the real function
-  window._fireSave = function(key, val) {
-    localStorage.setItem('fire_' + key, JSON.stringify(val));
-    _driveObserveSave(key, val);
-  };
-})();
-// Replace all save() calls with direct localStorage + drive trigger
-// by patching at the prototype level isn't possible for plain functions,
-// so we directly override the global:
-save = (function() {
-  return function(key, val) {
-    localStorage.setItem('fire_' + key, JSON.stringify(val));
-    _driveObserveSave(key, val);
-  };
-})();
-
-// Poll every 60s
-setInterval(() => {
-  if (_driveToken && !_syncPending && document.visibilityState === 'visible') _drivePull();
-}, 60000);
-
-// Pull on tab focus
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && _driveToken) _drivePull();
-});
-
 </script>
 </body>
 </html>
